@@ -271,6 +271,7 @@ const PATHS = {
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9', dollar: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   bolt: 'M13 2 4 14h6l-1 8 9-12h-6z', link: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1', report: 'M4 21V4a1 1 0 0 1 1-1h11l4 4v14a1 1 0 0 1-1 1zM8 17v-4M12 17v-7M16 17v-2',
+  grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
 };
 export function icon(name, size = 20) {
   const d = PATHS[name] || PATHS.doc;
