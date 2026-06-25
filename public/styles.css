@@ -619,3 +619,52 @@ button.cal-cell:hover { background: var(--bg); }
   .school-row { grid-template-columns: 1fr; gap: 8px; }
   .sentiment, .sent-stats { gap: 12px; }
 }
+
+/* ============================================================================
+ * iPhone-native presentation — mobile only (appended last so it wins on ties)
+ * ==========================================================================*/
+@media (max-width: 860px) {
+  body { font-size: 15px; }
+
+  /* --- iOS translucent navigation bar --- */
+  .topbar { background: rgba(255,255,255,.78); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: .5px solid transparent; transition: border-color .25s; }
+  .topbar.scrolled { border-bottom-color: rgba(0,0,0,.13); }
+  .brand-text { display: none; }                 /* the large screen title carries identity */
+  .brand-mark { width: 30px; height: 30px; border-radius: 8px; }
+  .nav-title { position: absolute; left: 50%; transform: translateX(-50%); top: env(safe-area-inset-top); height: var(--topbar-h); display: flex; align-items: center; max-width: 56%; font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .topbar.scrolled .nav-title { opacity: 1; }
+  /* when the title collapses in, tuck the language toggle away so the centered title has room */
+  .lang-toggle { transition: opacity .2s; }
+  .topbar.scrolled .lang-toggle { opacity: 0; pointer-events: none; }
+  .topbar-right { gap: 9px; }
+  .persona-btn { padding: 1px; border: none; background: transparent; }
+  .persona-btn:hover { border: none; }
+  .caret { display: none; }
+  .lang-toggle { background: rgba(118,118,128,.12); }
+
+  /* --- iOS large title --- */
+  .page-head { flex-wrap: nowrap; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+  .page-head > div:first-child { flex: 1; min-width: 0; }
+  .page-head h1 { font-size: 30px; font-weight: 800; letter-spacing: -.022em; }
+  .page-head .muted { font-size: 13.5px; margin-top: 2px; }
+  .page-head .btn { flex: none; margin-top: 3px; }
+
+  /* --- iOS grouped section headers --- */
+  .sec-h { text-transform: uppercase; font-size: 12.5px; font-weight: 700; color: var(--muted); letter-spacing: .04em; margin: 22px 4px 9px; }
+
+  /* --- iOS rounded grouped cards --- */
+  .card { border-radius: 16px; border-color: rgba(0,0,0,.05); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+
+  /* --- compact, less-dominant alert banner (full text still on the Alerts tab) --- */
+  .alert-banner { padding: 13px 15px; border-radius: 15px; margin-bottom: 16px; gap: 7px; }
+  .alert-banner .ab-text strong { font-size: 14px; }
+  .alert-banner .ab-text p { font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* --- post header: channel chips drop to a row below so the author/audience line isn't squeezed --- */
+  .post-head { flex-wrap: wrap; align-items: flex-start; }
+  .post-head > .chips { flex-basis: 100%; margin: 8px 0 0 56px; }
+
+  /* --- iOS press feedback on tappable rows --- */
+  .conv-item:active, .person:active, .group-card:active, .fee:active, .slot:active, .report-tile:active,
+  .alert-card:active, .tp-row:active, .auto-card:active, .int-card:active, .ms-tile:active, .pm-item:active { background: rgba(0,0,0,.04); }
+}

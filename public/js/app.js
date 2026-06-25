@@ -106,10 +106,12 @@ function topbar() {
     ...[['en', 'EN'], ['es', 'ES']].map(([code, lbl]) =>
       el('button', { class: 'lang-opt' + (S.lang === code ? ' active' : ''), onclick: () => setLang(code) }, lbl)));
 
-  return el('header', { class: 'topbar' },
+  return el('header', { class: 'topbar', id: 'topbar' },
     el('div', { class: 'brand', onclick: () => navigate(me.role === 'admin' ? 'dashboard' : 'home') },
       el('div', { class: 'brand-mark' }, el('span', {})),
       el('div', { class: 'brand-text' }, el('strong', {}, d.shortName), el('span', {}, 'Family Connect'))),
+    // iOS-style collapsing title: shows the current screen name once the large title scrolls under the bar
+    el('div', { class: 'nav-title', id: 'nav-title' }),
     el('div', { class: 'topbar-right' }, langToggle, personaWrap));
 }
 
@@ -238,12 +240,26 @@ function render() {
   const sheet = moreSheet();
   if (sheet) app.appendChild(sheet);
   syncMenus();
-  // on the mobile bottom-nav, keep the active tab in view
+  // on the mobile bottom-nav, keep the active tab in view + feed the iOS collapsing title
   if (isMobile()) {
     const an = document.querySelector('.side-scroll .nav-item.active');
     if (an) an.scrollIntoView({ inline: 'center', block: 'nearest' });
+    const nt = document.getElementById('nav-title');
+    const h1 = document.querySelector('.page-head h1');
+    if (nt) nt.textContent = h1 ? h1.textContent : '';
+    onScrollSync();
   }
 }
+
+// iOS nav bar: reveal the compact centered title once the large title scrolls under the bar
+function onScrollSync() {
+  const tb = document.getElementById('topbar'); if (!tb) return;
+  if (!isMobile()) { tb.classList.remove('scrolled'); return; }
+  const ph = document.querySelector('.page-head');
+  const show = ph ? ph.getBoundingClientRect().bottom <= tb.offsetHeight - 2 : window.scrollY > 60;
+  tb.classList.toggle('scrolled', show);
+}
+addEventListener('scroll', onScrollSync, { passive: true });
 
 // re-render when crossing the mobile/desktop breakpoint so the nav swaps cleanly
 let _wasMobile = isMobile();
