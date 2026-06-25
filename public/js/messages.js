@@ -38,9 +38,10 @@ function bubble(m) {
       el('div', { class: 'b-foot' }, el('span', { class: 'b-time' }, timeAgo(m.createdAt)), t.translated ? translatedTag() : null)));
 }
 
-function thread(c) {
+function thread(c, showBack) {
   const o = others(c);
   const head = el('div', { class: 'thread-head' },
+    showBack ? el('button', { class: 'thread-back', onclick: () => C.navigate('messages', {}) }, '‹') : null,
     c.type === 'group' ? el('div', { class: 'grp-av' }, ...o.slice(0, 3).map((u) => avatar(u, 30))) : avatar(o[0], 40),
     el('div', {}, el('strong', {}, convTitle(c)),
       el('p', { class: 'muted tiny' }, c.type === 'group' ? `${c.participantIds.length} ${L('participants', 'participantes')}` : (o[0]?.title || L('Parent / Guardian', 'Padre / Tutor')))),
@@ -65,11 +66,16 @@ function thread(c) {
 export function renderMessages(main) {
   const me = actor();
   const convs = myConversations();
-  const activeId = S.params.conversationId || convs[0]?.id;
+  const mobile = matchMedia('(max-width: 860px)').matches;
+  // desktop auto-opens the first conversation; mobile shows the list until one is tapped
+  const activeId = S.params.conversationId || (mobile ? null : convs[0]?.id);
   const active = convs.find((c) => c.id === activeId);
 
-  main.appendChild(pageHead(L('Messages', 'Mensajes'), L('Two-way, auto-translated conversations with staff & families', 'Conversaciones bidireccionales y traducidas'),
-    btn(L('New Message', 'Nuevo mensaje'), { kind: 'primary', iconName: 'plus', onclick: () => openNewMessage() })));
+  // on mobile, an open thread takes over the screen (with a back button) — skip the page header for room
+  if (!(mobile && active)) {
+    main.appendChild(pageHead(L('Messages', 'Mensajes'), L('Two-way, auto-translated conversations with staff & families', 'Conversaciones bidireccionales y traducidas'),
+      btn(L('New Message', 'Nuevo mensaje'), { kind: 'primary', iconName: 'plus', onclick: () => openNewMessage() })));
+  }
 
   // mark active as read (after this render, to avoid re-entrancy)
   if (active && active.messages.some((m) => m.senderId !== S.me && !m.read)) {
@@ -79,7 +85,11 @@ export function renderMessages(main) {
   const list = el('div', { class: 'conv-list' }, convs.length ? null : el('p', { class: 'muted pad' }, L('No conversations yet', 'No hay conversaciones')),
     ...convs.map((c) => listItem(c, c.id === activeId)));
 
-  main.appendChild(el('div', { class: 'msg-layout' }, list, active ? thread(active) : C.emptyState(L('Select a conversation', 'Selecciona una conversación'))));
+  if (mobile) {
+    main.appendChild(active ? thread(active, true) : list);
+  } else {
+    main.appendChild(el('div', { class: 'msg-layout' }, list, active ? thread(active, false) : C.emptyState(L('Select a conversation', 'Selecciona una conversación'))));
+  }
 
   // auto-scroll thread to bottom
   setTimeout(() => { const tb = document.getElementById('thread-body'); if (tb) tb.scrollTop = tb.scrollHeight; }, 0);

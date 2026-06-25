@@ -164,7 +164,9 @@ function render() {
   const app = document.getElementById('app');
   C.clear(app);
   const main = el('main', { class: 'main', id: 'main' });
-  const banner = alertBanner();
+  // hide the alert banner when a mobile message thread takes over the screen (so the composer stays in view)
+  const mobileThread = window.matchMedia && matchMedia('(max-width: 860px)').matches && S.view === 'messages' && S.params.conversationId;
+  const banner = mobileThread ? null : alertBanner();
   const fn = VIEWS[S.view] || VIEWS.home;
   try { fn(main); }
   catch (e) { console.error(e); main.appendChild(el('div', { class: 'error' }, 'View error: ' + e.message)); }
@@ -175,6 +177,11 @@ function render() {
       sidebar(),
       el('div', { class: 'content' }, banner, shellActions(), main))));
   syncMenus();
+  // on the mobile bottom-nav, keep the active tab in view
+  if (window.matchMedia && matchMedia('(max-width: 860px)').matches) {
+    const an = document.querySelector('.side-scroll .nav-item.active');
+    if (an) an.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
 }
 
 // ---------------------------------------------------------------------------
