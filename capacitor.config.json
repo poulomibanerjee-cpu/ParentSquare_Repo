@@ -1,0 +1,10 @@
+{
+  "appId": "org.successacademies.familyconnect",
+  "appName": "SA Family Connect",
+  "webDir": "public",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#ffffff"
+  },
+  "backgroundColor": "#ffffff"
+}

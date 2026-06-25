@@ -1,0 +1,23 @@
+{
+  "name": "sa-family-connect",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Success Academy — Family Connect: a self-contained, zero-dependency ParentSquare-style family-engagement platform demo (fictional data).",
+  "scripts": {
+    "start": "node server.cjs",
+    "seed": "node seed.cjs",
+    "icons": "node icon-gen.cjs",
+    "reset": "node seed.cjs && rm -f data/db.json",
+    "test": "node test-smoke.cjs",
+    "ios:add": "cap add ios",
+    "ios": "cap sync ios && cap open ios"
+  },
+  "engines": { "node": ">=18" },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/local-notifications": "^6.1.0"
+  }
+}
