@@ -11,7 +11,7 @@ function photoTile(att) {
     const url = att.dataUrl || att.src;
     const seed = [...(att.label || att.name || url)].reduce((a, c) => a + c.charCodeAt(0), 0);
     const grad = `linear-gradient(135deg, hsl(${seed % 360} 70% 62%), hsl(${(seed * 7) % 360} 70% 48%))`; // shows if the image file isn't there yet
-    const img = el('img', { src: url, alt: att.label || 'photo', loading: 'lazy', onerror: (e) => e.target.remove() });
+    const img = el('img', { src: url, alt: att.label || 'photo', decoding: 'async', onerror: (e) => e.target.remove() });
     return el('div', { class: 'photo-tile real', title: att.label || '', style: { background: grad } }, img, att.label ? el('span', { class: 'pt-label' }, att.label) : null);
   }
   if (att.type === 'pdf') {
