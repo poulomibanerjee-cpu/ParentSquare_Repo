@@ -668,3 +668,14 @@ button.cal-cell:hover { background: var(--bg); }
   .conv-item:active, .person:active, .group-card:active, .fee:active, .slot:active, .report-tile:active,
   .alert-card:active, .tp-row:active, .auto-card:active, .int-card:active, .ms-tile:active, .pm-item:active { background: rgba(0,0,0,.04); }
 }
+
+/* ============================================================================
+ * Accessibility — visible keyboard focus, reduced-motion, view-only pill
+ * ==========================================================================*/
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 5px; }
+.inp:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.viewer-pill { display: inline-flex; align-items: center; gap: 4px; }
+.viewer-pill svg { vertical-align: -.15em; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}

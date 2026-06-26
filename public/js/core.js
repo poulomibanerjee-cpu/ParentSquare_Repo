@@ -465,7 +465,7 @@ export function modal({ title, subtitle, body, actions, wide }) {
     el('div', {},
       el('h3', {}, title),
       subtitle ? el('p', { class: 'muted' }, subtitle) : null),
-    el('button', { class: 'icon-btn', onclick: close, html: icon('x') }));
+    el('button', { class: 'icon-btn', onclick: close, html: icon('x'), 'aria-label': L('Close', 'Cerrar') }));
   const foot = actions ? el('div', { class: 'modal-foot' }, ...actions) : null;
   const box = el('div', { class: 'modal' + (wide ? ' wide' : '') }, head, el('div', { class: 'modal-body' }, body), foot);
   back.appendChild(box);

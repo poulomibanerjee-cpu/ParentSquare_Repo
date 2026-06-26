@@ -96,7 +96,7 @@ function topbar() {
     el('div', { class: 'pm-foot' },
       el('button', { class: 'link-btn', onclick: async () => { closeMenus(); if (confirm('Reset all demo data to its original seed? Your sent messages, RSVPs, sign-ups, etc. will be cleared.')) { await resetDb(); C.toast('Demo data reset'); } } }, '↺ Reset demo data')));
 
-  const personaBtn = el('button', { class: 'persona-btn', onclick: () => toggleMenu('persona') },
+  const personaBtn = el('button', { class: 'persona-btn', 'aria-label': C.L('Switch persona', 'Cambiar persona'), onclick: () => toggleMenu('persona') },
     avatar(me, 32),
     el('div', { class: 'pb-text' }, el('strong', {}, me.name), el('span', {}, me.title || (me.role === 'parent' ? C.L('Parent / Guardian', 'Padre / Tutor') : me.role))),
     el('span', { class: 'caret', html: '▾' }));
@@ -227,6 +227,7 @@ document.addEventListener('click', (e) => { if (openMenu === 'persona' && !e.tar
 function render() {
   const app = document.getElementById('app');
   C.clear(app);
+  document.documentElement.lang = S.lang;   // screen readers announce content in the right language
   const main = el('main', { class: 'main', id: 'main' });
   // an open conversation takes over the screen on mobile (full-screen thread, hidden tab bar, no banner)
   const mobileThread = isMobile() && S.view === 'messages' && !!S.params.conversationId;

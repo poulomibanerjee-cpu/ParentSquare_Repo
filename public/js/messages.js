@@ -50,7 +50,7 @@ function threadView(data, showBack) {
   const c = data.conversation;
   const o = others(c);
   const head = el('div', { class: 'thread-head' },
-    showBack ? el('button', { class: 'thread-back', onclick: () => C.navigate('messages', {}) }, '‹') : null,
+    showBack ? el('button', { class: 'thread-back', 'aria-label': L('Back', 'Atrás'), onclick: () => C.navigate('messages', {}) }, '‹') : null,
     c.type === 'group' ? el('div', { class: 'grp-av' }, ...o.slice(0, 3).map((u) => avatar(u, 30))) : avatar(o[0], 40),
     el('div', {}, el('strong', {}, convTitle(c)),
       el('p', { class: 'muted tiny' }, c.type === 'group' ? `${(c.participants || []).length} ${L('participants', 'participantes')}` : (o[0]?.title || L('Parent / Guardian', 'Padre / Tutor')))),
@@ -69,7 +69,7 @@ function threadView(data, showBack) {
     await act('sendMessage', { conversationId: c.id, senderId: S.me, body: val, lang: actor().language });
     val = '';
   };
-  const composer = el('div', { class: 'composer' }, input, el('button', { class: 'send-btn', html: icon('send', 20), onclick: send }));
+  const composer = el('div', { class: 'composer' }, input, el('button', { class: 'send-btn', 'aria-label': L('Send', 'Enviar'), html: icon('send', 20), onclick: send }));
 
   return el('div', { class: 'thread' }, head, body, C.isViewer() ? el('div', { class: 'composer' }, el('span', { class: 'muted tiny', style: { padding: '6px 4px' } }, L('View-only access — messaging is disabled', 'Solo lectura — la mensajería está desactivada'))) : composer);
 }
