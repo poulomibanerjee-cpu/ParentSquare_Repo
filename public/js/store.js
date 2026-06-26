@@ -200,4 +200,36 @@ const OPS = {
   eventCheckIn(db, { eventId, userId }) { const e = find(db.events, eventId); if (!e) return; e.attended ||= []; e.attended = e.attended.includes(userId) ? e.attended.filter((u) => u !== userId) : [...e.attended, userId]; },
   toggleAutomation(db, { autoId }) { const a = (db.automations || []).find((x) => x.id === autoId); if (a) a.active = !a.active; },
   syncIntegration(db, { intId }) { const i = (db.integrations || []).find((x) => x.id === intId); if (i) i.lastSync = nowISO(); },
+
+  // ---- admin configuration: smart lists, groups, automations ----------------
+  saveSmartList(db, { list }) {
+    db.smartLists ||= [];
+    const rec = { id: list.id || rid('sl'), label: list.label || 'Untitled list', icon: list.icon || '🎯', logic: list.logic === 'any' ? 'any' : 'all', rules: Array.isArray(list.rules) ? list.rules : [] };
+    const i = db.smartLists.findIndex((s) => s.id === rec.id);
+    if (i >= 0) db.smartLists[i] = rec; else db.smartLists.unshift(rec);
+    return rec.id;
+  },
+  deleteSmartList(db, { id }) { db.smartLists = (db.smartLists || []).filter((s) => s.id !== id); },
+  createGroup(db, { name, type, schoolId, leadIds, memberIds }) {
+    const g = { id: rid('grp'), name: name || 'New group', type: type || 'club', schoolId: schoolId || null, leadIds: leadIds || [], memberIds: memberIds || [], studentIds: [] };
+    db.groups.unshift(g); return g.id;
+  },
+  updateGroup(db, { id, name, type, schoolId, leadIds, memberIds }) {
+    const g = find(db.groups, id); if (!g) return;
+    if (name != null) g.name = name;
+    if (type != null) g.type = type;
+    if (schoolId !== undefined) g.schoolId = schoolId;
+    if (Array.isArray(leadIds)) g.leadIds = leadIds;
+    if (Array.isArray(memberIds)) g.memberIds = memberIds;
+  },
+  deleteGroup(db, { id }) { db.groups = db.groups.filter((g) => g.id !== id); },
+  saveAutomation(db, { auto }) {
+    db.automations ||= [];
+    const i = db.automations.findIndex((a) => a.id === auto.id);
+    const base = i >= 0 ? db.automations[i] : { reached: 0, lastRun: null };
+    const rec = { ...base, id: auto.id || rid('auto'), name: auto.name || 'New automation', type: auto.type || 'triggered', trigger: auto.trigger || '', audienceDesc: auto.audienceDesc || '', channels: Array.isArray(auto.channels) && auto.channels.length ? auto.channels : ['app'], active: auto.active !== false, steps: auto.steps || 1 };
+    if (i >= 0) db.automations[i] = rec; else db.automations.unshift(rec);
+    return rec.id;
+  },
+  deleteAutomation(db, { id }) { db.automations = (db.automations || []).filter((a) => a.id !== id); },
 };

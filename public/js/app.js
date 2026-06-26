@@ -9,6 +9,7 @@ import { renderSignups, renderForms, renderCalendar } from './engage.js';
 import { renderPayments, renderAttendance, renderDocuments } from './records.js';
 import { renderDirectory, renderSettings } from './directory.js';
 import { renderDashboard, renderModeration, renderAlerts, openSendAlert, renderAutomations, renderReports, renderIntegrations } from './admin.js';
+import { renderConfig } from './config.js';
 
 const VIEWS = {
   home: renderFeed, messages: renderMessages, signups: renderSignups, forms: renderForms,
@@ -16,6 +17,7 @@ const VIEWS = {
   documents: renderDocuments, directory: renderDirectory, settings: renderSettings,
   dashboard: renderDashboard, moderation: renderModeration, alerts: renderAlerts,
   automations: renderAutomations, reports: renderReports, integrations: renderIntegrations,
+  config: renderConfig,
 };
 
 // nav config per role: [view, labelEN, labelES, iconName]
@@ -43,7 +45,7 @@ const NAV = {
     ['forms', 'Forms', 'Formularios', 'doc'], ['documents', 'Documents', 'Documentos', 'folder'],
     ['calendar', 'Calendar', 'Calendario', 'calendar'], ['attendance', 'Attendance', 'Asistencia', 'clock'],
     ['integrations', 'Integrations', 'Integraciones', 'link'], ['directory', 'Directory', 'Directorio', 'people'],
-    ['settings', 'Settings', 'Ajustes', 'settings'],
+    ['config', 'Configure', 'Configurar', 'sliders'], ['settings', 'Settings', 'Ajustes', 'settings'],
   ],
 };
 

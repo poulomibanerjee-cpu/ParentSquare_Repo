@@ -13,7 +13,7 @@ const { DatabaseSync } = require('node:sqlite');
 const ARRAY_COLLECTIONS = [
   'schools', 'users', 'students', 'groups', 'posts', 'conversations', 'signups',
   'forms', 'events', 'alerts', 'attendanceRules', 'attendanceEvents', 'fees',
-  'documents', 'automations', 'integrations', 'moderation', 'personas',
+  'documents', 'automations', 'integrations', 'moderation', 'personas', 'smartLists',
 ];
 // singletons / maps → key/value table
 const KV_KEYS = ['meta', 'district', 'guardianMap', 'studentMap', 'prefs'];
@@ -62,6 +62,15 @@ function persistCollection(db, name, arr) {
 
 const persistKv = (db, key, val) => db.prepare('INSERT OR REPLACE INTO kv (key,doc) VALUES (?,?)').run(key, JSON.stringify(val));
 
+// full-replace a (small) collection — used by config edits that can DELETE rows
+// (smart lists, groups, automations), which upsert-only persistCollection can't express.
+function replaceCollection(db, name, arr) {
+  db.exec('BEGIN');
+  try { db.exec(`DELETE FROM ${name}`); db.exec('COMMIT'); }
+  catch (e) { db.exec('ROLLBACK'); throw e; }
+  persistCollection(db, name, arr);
+}
+
 function importSeed(db, seed) {
   for (const c of ARRAY_COLLECTIONS) persistCollection(db, c, seed[c] || []);
   for (const k of KV_KEYS) persistKv(db, k, seed[k] ?? {});
@@ -102,4 +111,4 @@ const countRecipients = (db, { role = 'parent', schoolId = '' } = {}) =>
     ? db.prepare('SELECT count(*) c FROM users WHERE role=? AND school_id=?').get(role, schoolId).c
     : db.prepare('SELECT count(*) c FROM users WHERE role=?').get(role).c;
 
-module.exports = { open, isEmpty, importSeed, reset, loadAll, persistCollection, persistKv, searchUsers, countRecipients, ARRAY_COLLECTIONS, KV_KEYS };
+module.exports = { open, isEmpty, importSeed, reset, loadAll, persistCollection, replaceCollection, persistKv, searchUsers, countRecipients, ARRAY_COLLECTIONS, KV_KEYS };

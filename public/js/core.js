@@ -182,28 +182,71 @@ export function audiencesFor(me) {
 // ---------------------------------------------------------------------------
 // SMART LISTS — rule-based, dynamic audiences (fixes grade-only targeting)
 // ---------------------------------------------------------------------------
+// Rules are DATA (not code) so admins can build/edit Smart Lists in the UI. Vocabulary:
+export const SL_FIELDS = [
+  { field: 'language', label: 'Preferred language', ops: ['is', 'not'], values: [['es', 'Spanish'], ['en', 'English']] },
+  { field: 'verified', label: 'Contact verified', ops: ['is'], values: [['yes', 'Yes'], ['no', 'No']] },
+  { field: 'reachedBy', label: 'Channel', ops: ['has', 'hasnot'], values: [['app', 'App'], ['email', 'Email'], ['sms', 'Text']] },
+  { field: 'school', label: 'School', ops: ['is', 'not'], values: 'schools' },
+  { field: 'grade', label: 'Scholar grade', ops: ['is', 'not'], values: 'grades' },
+  { field: 'group', label: 'In group', ops: ['in', 'notin'], values: 'groups' },
+  { field: 'atrisk', label: 'Attendance at-risk', ops: ['is'], values: [['yes', 'Yes'], ['no', 'No']] },
+];
+const _atRiskSet = () => new Set((S.db?.attendanceEvents || []).filter((e) => e.type === 'absent' || e.type === 'truancy').flatMap((e) => S.db.guardianMap?.[e.studentId] || []));
+
+export function matchRule(u, r, ctx) {
+  switch (r.field) {
+    case 'language': return r.op === 'not' ? u.language !== r.value : u.language === r.value;
+    case 'verified': return (!!u.verified) === (r.value === 'yes');
+    case 'reachedBy': { const has = (u.reachedBy || []).includes(r.value); return r.op === 'hasnot' ? !has : has; }
+    case 'school': return r.op === 'not' ? u.schoolId !== r.value : u.schoolId === r.value;
+    case 'grade': { const hit = childrenOf(u.id).some((k) => String(k.grade) === String(r.value)); return r.op === 'not' ? !hit : hit; }
+    case 'group': { const g = groupById(r.value); const inG = !!g && (g.memberIds || []).includes(u.id); return r.op === 'notin' ? !inG : inG; }
+    case 'atrisk': return ctx.atRisk.has(u.id) === (r.value !== 'no');
+    default: return false;
+  }
+}
+export function matchSmartList(u, list, ctx) {
+  const rules = list.rules || [];
+  if (!rules.length) return false;
+  return list.logic === 'any' ? rules.some((r) => matchRule(u, r, ctx)) : rules.every((r) => matchRule(u, r, ctx));
+}
+
+// the 6 starter lists, now expressed as rule-data (read-only); admins add their own (S.db.smartLists)
+const BUILTIN_SMARTLISTS = [
+  { id: 'sl_spanish', label: 'Spanish-preferring families', icon: '🌐', logic: 'all', builtin: true, rules: [{ field: 'language', op: 'is', value: 'es' }] },
+  { id: 'sl_unverified', label: 'Unconfirmed contacts', icon: '⚠️', logic: 'all', builtin: true, rules: [{ field: 'verified', op: 'is', value: 'no' }] },
+  { id: 'sl_atrisk', label: 'At-risk families (attendance)', icon: '🚩', logic: 'all', builtin: true, rules: [{ field: 'atrisk', op: 'is', value: 'yes' }] },
+  { id: 'sl_noapp', label: 'Not yet on the app', icon: '📲', logic: 'all', builtin: true, rules: [{ field: 'reachedBy', op: 'hasnot', value: 'app' }] },
+  { id: 'sl_chess', label: 'Chess Team families', icon: '♟️', logic: 'all', builtin: true, rules: [{ field: 'group', op: 'in', value: 'grp_chess' }] },
+  { id: 'sl_bus7', label: 'Bus Route 7', icon: '🚌', logic: 'all', builtin: true, rules: [{ field: 'group', op: 'in', value: 'grp_bus7' }] },
+];
+export const allSmartListDefs = () => [...BUILTIN_SMARTLISTS, ...((S.db?.smartLists) || [])];
+
 export function smartLists() {
   const parents = (S.db?.users || []).filter((u) => u.role === 'parent');
-  const atRisk = new Set((S.db?.attendanceEvents || []).filter((e) => e.type === 'absent' || e.type === 'truancy').flatMap((e) => S.db.guardianMap[e.studentId] || []));
-  const inGrp = (gid) => { const g = groupById(gid); return (u) => !!g && g.memberIds.includes(u.id); };
-  const defs = [
-    { id: 'sl_spanish', label: 'Spanish-preferring families', icon: '🌐', match: (u) => u.language === 'es' },
-    { id: 'sl_unverified', label: 'Unconfirmed contacts', icon: '⚠️', match: (u) => !u.verified },
-    { id: 'sl_atrisk', label: 'At-risk families (attendance)', icon: '🚩', match: (u) => atRisk.has(u.id) },
-    { id: 'sl_noapp', label: 'Not yet on the app', icon: '📲', match: (u) => !(u.reachedBy || []).includes('app') },
-    { id: 'sl_chess', label: 'Chess Team families', icon: '♟️', match: inGrp('grp_chess') },
-    { id: 'sl_bus7', label: 'Bus Route 7', icon: '🚌', match: inGrp('grp_bus7') },
-  ];
-  return defs.map((s) => ({ ...s, type: 'smart', count: parents.filter(s.match).length }));
+  const ctx = { atRisk: _atRiskSet() };
+  return allSmartListDefs().map((s) => ({ ...s, type: 'smart', count: parents.filter((u) => matchSmartList(u, s, ctx)).length }));
 }
 export function resolveRecipients(audience) {
   const parents = (S.db?.users || []).filter((u) => u.role === 'parent');
   if (!audience) return [];
-  if (audience.type === 'smart') { const sl = smartLists().find((s) => s.id === audience.id); return sl ? parents.filter(sl.match) : []; }
+  if (audience.type === 'smart') {
+    const sl = allSmartListDefs().find((s) => s.id === audience.id);
+    if (!sl) return [];
+    const ctx = { atRisk: _atRiskSet() };
+    return parents.filter((u) => matchSmartList(u, sl, ctx));
+  }
   if (audience.type === 'network') return parents;
   const g = groupById(audience.id); if (!g) return [];
   if (audience.type === 'school') return parents.filter((u) => g.memberIds.includes(u.id) || u.schoolId === g.schoolId);
   return parents.filter((u) => g.memberIds.includes(u.id));
+}
+// live count for a draft smart list (used by the builder preview)
+export function countSmartList(list) {
+  const parents = (S.db?.users || []).filter((u) => u.role === 'parent');
+  const ctx = { atRisk: _atRiskSet() };
+  return parents.filter((u) => matchSmartList(u, list, ctx)).length;
 }
 export const audienceCount = (audience) => resolveRecipients(audience).length;
 
@@ -360,6 +403,7 @@ const PATHS = {
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   bolt: 'M13 2 4 14h6l-1 8 9-12h-6z', link: 'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1', report: 'M4 21V4a1 1 0 0 1 1-1h11l4 4v14a1 1 0 0 1-1 1zM8 17v-4M12 17v-7M16 17v-2',
   grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  sliders: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
 };
 export function icon(name, size = 20) {
   const d = PATHS[name] || PATHS.doc;
