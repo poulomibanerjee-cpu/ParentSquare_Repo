@@ -71,20 +71,20 @@ export function renderDirectory(main) {
 
   // groups visible to me
   const groups = S.db.groups.filter((g) => me.role === 'admin' || g.memberIds.includes(me.id) || g.leadIds.includes(me.id) || g.schoolId === me.schoolId);
-  // people pool
-  const pool = me.role === 'parent'
-    ? S.db.users.filter((u) => u.role !== 'parent' && u.schoolId === me.schoolId)   // parents see staff
-    : S.db.users.filter((u) => u.schoolId === me.schoolId || me.role === 'admin');
-
   const peopleWrap = el('div', { class: 'person-list' });
-  const CAP = 50; // never render more than this many rows at once (keeps it snappy at 1,000+)
-  const renderPeople = (q) => {
+  const CAP = 50;
+  // people come from the scoped, paginated directory endpoint (server-side search) or the on-device store (offline)
+  const renderPeople = async (q) => {
     C.clear(peopleWrap);
-    const ql = q.toLowerCase();
-    const matches = pool.filter((u) => u.name.toLowerCase().includes(ql) || (u.title || '').toLowerCase().includes(ql)).sort((a, b) => a.name.localeCompare(b.name));
-    matches.slice(0, CAP).forEach((u) => peopleWrap.appendChild(personRow(u)));
-    if (!matches.length) peopleWrap.appendChild(el('p', { class: 'muted pad' }, L('No matches', 'Sin resultados')));
-    else if (matches.length > CAP) peopleWrap.appendChild(el('div', { class: 'list-more' }, L(`Showing ${CAP} of ${matches.length} — search to narrow`, `Mostrando ${CAP} de ${matches.length} — busca para filtrar`)));
+    peopleWrap.appendChild(el('p', { class: 'muted pad' }, L('Searching…', 'Buscando…')));
+    try {
+      const { items, total } = await C.directoryPage({ q, schoolId: me.role === 'admin' ? '' : me.schoolId, limit: CAP });
+      const rows = me.role === 'parent' ? items.filter((u) => u.role !== 'parent') : items;   // parents see staff only
+      C.clear(peopleWrap);
+      if (!rows.length) { peopleWrap.appendChild(el('p', { class: 'muted pad' }, L('No matches', 'Sin resultados'))); return; }
+      rows.forEach((u) => peopleWrap.appendChild(personRow(u)));
+      if (total > items.length) peopleWrap.appendChild(el('div', { class: 'list-more' }, L(`Showing ${rows.length} of ${total} — search to narrow`, `Mostrando ${rows.length} de ${total} — busca para filtrar`)));
+    } catch (e) { C.clear(peopleWrap); peopleWrap.appendChild(el('div', { class: 'error' }, 'Directory error: ' + (e && e.message))); }
   };
   renderPeople('');
 

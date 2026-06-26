@@ -6,11 +6,12 @@
 // STATE (single source of truth held in memory; server persists the DB)
 // ---------------------------------------------------------------------------
 export const S = {
-  db: null,        // full DB from /api/state
+  db: null,        // bootstrap DB (bounded reference data) from /api/state
   me: null,        // current persona userId
   lang: 'en',      // 'en' | 'es'  (drives translation demo)
   view: 'home',    // current route
   params: {},      // route params (e.g. open conversation id)
+  unread: 0,       // cached inbound-unread count for the nav badge (server mode)
 };
 
 let _onChange = null;
@@ -23,7 +24,7 @@ const ping = () => _onChange && _onChange();
 import * as store from './store.js';
 export async function loadState() {
   S.db = await store.loadState();
-  store.subscribe((db) => { S.db = db; ping(); }); // server mode: re-render on live updates from other users
+  store.subscribe((db) => { S.db = db; ping(); refreshUnread().then(ping); }); // live updates: re-render + refresh the unread badge
   return S.db;
 }
 export async function act(op, payload) {
@@ -87,7 +88,89 @@ export function myConversations() {
     .filter((c) => c.participantIds.includes(me))
     .sort((a, b) => new Date(b.messages.at(-1)?.createdAt || 0) - new Date(a.messages.at(-1)?.createdAt || 0));
 }
-export const unreadCount = () => myConversations().reduce((n, c) => n + c.messages.filter((m) => m.senderId !== S.me && !m.read).length, 0);
+export const unreadCount = () => store.mode() === 'server' ? (S.unread || 0) : myConversations().reduce((n, c) => n + c.messages.filter((m) => m.senderId !== S.me && !m.read).length, 0);
+
+// ---------------------------------------------------------------------------
+// SCOPED DATA ACCESS — the heavy/unbounded reads. In SERVER mode these hit the
+// paginated, SQL-backed API (the client never loads the whole dataset); in
+// DEVICE/offline mode they compute the SAME shape from the on-device DB so the
+// PWA still works. Views call these and never touch the big collections directly.
+// ---------------------------------------------------------------------------
+const apiGet = async (path) => { const r = await fetch(path, { cache: 'no-store' }); if (!r.ok) throw new Error(`${path} → ${r.status}`); return r.json(); };
+const slimUser = (u) => u && { id: u.id, name: u.name, avatar: u.avatar, color: u.color, title: u.title, role: u.role };
+const qs = (o) => Object.entries(o).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+
+export async function feedPage({ me = S.me, limit = 20, before = null } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/feed?${qs({ me, limit, before })}`);
+  let posts = visiblePosts();
+  if (before) posts = posts.filter((p) => p.createdAt < before);
+  const page = posts.slice(0, limit);
+  return { items: page.map((p) => ({ ...p, author: slimUser(userById(p.authorId)) })), nextBefore: posts.length > limit ? page.at(-1)?.createdAt : null, hasMore: posts.length > limit };
+}
+
+export async function conversationList({ me = S.me } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/conversations?${qs({ me })}`);
+  const items = myConversations().map((c) => {
+    const msgs = c.messages || [], last = msgs.at(-1);
+    return { id: c.id, type: c.type, subject: c.subject || null,
+      participants: (c.participantIds || []).map((p) => slimUser(userById(p))).filter(Boolean),
+      lastMessage: last && { id: last.id, senderId: last.senderId, body: last.body, createdAt: last.createdAt },
+      unread: msgs.filter((m) => m.senderId !== me && !m.read).length, updatedAt: last ? last.createdAt : null };
+  });
+  return { items };
+}
+
+export async function threadPage({ id, me = S.me, limit = 30, before = null } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/thread?${qs({ id, me, limit, before })}`);
+  const conv = (S.db?.conversations || []).find((x) => x.id === id);
+  if (!conv) throw new Error('unknown conversation');
+  const chrono = (conv.messages || []).slice().sort((a, b) => a.createdAt < b.createdAt ? -1 : 1);
+  const visible = before ? chrono.filter((m) => m.createdAt < before) : chrono;
+  const start = Math.max(0, visible.length - limit), page = visible.slice(start);
+  return { items: page.map((m) => ({ ...m, sender: slimUser(userById(m.senderId)) })), hasMore: start > 0,
+    conversation: { id: conv.id, type: conv.type, subject: conv.subject || null, participants: (conv.participantIds || []).map((p) => slimUser(userById(p))).filter(Boolean) } };
+}
+
+export async function alertList({ me = S.me, limit = 20 } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/alerts?${qs({ me, limit })}`);
+  const u = actor();
+  const items = (S.db?.alerts || []).filter((a) => u.role === 'admin' || inAudience(u.id, a.audience))
+    .sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).slice(0, limit)
+    .map((a) => ({ ...a, author: slimUser(userById(a.authorId)) }));
+  return { items };
+}
+
+export async function directoryPage({ q = '', role = '', schoolId = '', limit = 25, offset = 0 } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/directory?${qs({ q, role, school: schoolId, limit, offset })}`);
+  let list = (S.db?.users || []).filter((u) => (!role || u.role === role) && (!schoolId || u.schoolId === schoolId) && (!q || `${u.name} ${u.email || ''}`.toLowerCase().includes(q.toLowerCase())));
+  list = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  return { total: list.length, items: list.slice(offset, offset + limit) };
+}
+
+export async function dashboardData() {
+  if (store.mode() === 'server') return apiGet('/api/dashboard');
+  const P = (S.db?.users || []).filter((u) => u.role === 'parent');
+  const verified = P.filter((u) => u.verified).length;
+  const posts = S.db?.posts || [];
+  const engagedIds = new Set();
+  posts.forEach((p) => { Object.values(p.reactions || {}).flat().forEach((id) => engagedIds.add(id)); (p.comments || []).forEach((c) => engagedIds.add(c.authorId)); });
+  const engaged = P.filter((u) => engagedIds.has(u.id)).length;
+  const reach = (ch) => P.filter((u) => (u.reachedBy || []).includes(ch)).length;
+  const bySchool = {};
+  P.forEach((u) => { const s = (bySchool[u.schoolId] ||= { schoolId: u.schoolId, families: 0, verified: 0 }); s.families++; if (u.verified) s.verified++; });
+  const perSchool = Object.values(bySchool).map((s) => ({ ...s, verifiedPct: s.families ? Math.round((s.verified / s.families) * 1000) / 10 : 0 })).sort((a, b) => b.families - a.families);
+  const scored = posts.map((p) => ({ p, reactions: Object.values(p.reactions || {}).flat().length, comments: (p.comments || []).length })).map((x) => ({ ...x, score: x.reactions + x.comments })).sort((a, b) => b.score - a.score).slice(0, 4);
+  const topPosts = scored.map(({ p, reactions, comments }) => ({ id: p.id, title: p.title, audience: p.audience, createdAt: p.createdAt, reactions, comments, author: slimUser(userById(p.authorId)) }));
+  const recentAlerts = (S.db?.alerts || []).slice().sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).slice(0, 2).map((a) => ({ id: a.id, severity: a.severity, title: a.title, createdAt: a.createdAt, audience: a.audience, recipients: a.delivery?.recipients }));
+  return { stats: { totalFamilies: P.length, verified, verifiedPct: P.length ? Math.round((verified / P.length) * 1000) / 10 : 0, postsThisWeek: posts.filter((p) => Date.now() - new Date(p.createdAt) < 7 * 864e5).length, engaged, engagedPct: P.length ? Math.round((engaged / P.length) * 1000) / 10 : 0 }, channelReach: { app: reach('app'), email: reach('email'), sms: reach('sms') }, perSchool, topPosts, recentAlerts };
+}
+
+export async function refreshUnread() {
+  try {
+    if (store.mode() === 'server') { const r = await apiGet(`/api/unread?${qs({ me: S.me })}`); S.unread = r.count || 0; }
+    else S.unread = myConversations().reduce((n, c) => n + c.messages.filter((m) => m.senderId !== S.me && !m.read).length, 0);
+  } catch { /* keep last value */ }
+}
 
 // audiences the current actor may post/create to (groups they lead, their school, or all if admin)
 export function audiencesFor(me) {

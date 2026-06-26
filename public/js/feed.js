@@ -72,7 +72,7 @@ function audienceTag(p) {
 }
 
 export function postCard(p) {
-  const author = userById(p.authorId);
+  const author = p.author || userById(p.authorId);                          // identity embedded by the scoped feed endpoint
   const me = actor();
   const body = tx(p, 'body', 'bodyEs');
   const text = applyMerge(body.text, me);                                  // mail-merge personalization
@@ -101,10 +101,8 @@ export function postCard(p) {
 
 export function renderFeed(main) {
   const me = actor();
-  let posts = visiblePosts();
   const kids = me.role === 'parent' ? childrenOf(me.id) : [];
   const sel = S.params.feedChild;
-  if (sel && me.role === 'parent') posts = posts.filter((p) => scholarsInAudience(p.audience, me.id).some((k) => k.id === sel));
   const title = me.role === 'admin' ? L('All Posts', 'Todas las publicaciones') : L('Home', 'Inicio');
   const sub = me.role === 'parent'
     ? L(`Updates for ${kids.map((s) => s.firstName).join(' & ') || 'your family'}`, 'Novedades para tu familia')
@@ -118,9 +116,22 @@ export function renderFeed(main) {
     main.appendChild(el('div', { class: 'child-filter' }, el('span', { class: 'muted tiny' }, L('By scholar:', 'Por estudiante:')), chip('', L('All', 'Todos')), ...kids.map((k) => chip(k.id, k.firstName))));
   }
 
-  if (!posts.length) { main.appendChild(C.emptyState(L('No posts yet', 'No hay publicaciones'))); return; }
-  const feed = el('div', { class: 'feed' }, ...posts.map(postCard));
+  // feed comes from the scoped, paginated endpoint (server) or the on-device store (offline) — never the whole table
+  const feed = el('div', { class: 'feed' }, el('p', { class: 'muted pad' }, L('Loading…', 'Cargando…')));
   main.appendChild(feed);
+  let before = null, first = true;
+  const load = async () => {
+    const data = await C.feedPage({ me: me.id, before });
+    if (first) { C.clear(feed); first = false; }
+    const old = feed.querySelector('.load-more'); if (old) old.remove();
+    let items = data.items || [];
+    if (sel && me.role === 'parent') items = items.filter((p) => scholarsInAudience(p.audience, me.id).some((k) => k.id === sel));
+    items.forEach((p) => feed.appendChild(postCard(p)));
+    before = data.nextBefore;
+    if (!feed.querySelector('.post')) feed.appendChild(C.emptyState(L('No posts yet', 'No hay publicaciones')));
+    if (data.hasMore) feed.appendChild(el('button', { class: 'btn ghost load-more', style: { display: 'block', margin: '10px auto' }, onclick: () => load() }, L('Load more', 'Ver más')));
+  };
+  load().catch((e) => { C.clear(feed); feed.appendChild(el('div', { class: 'error' }, 'Feed error: ' + (e && e.message))); });
 }
 
 // ---------------------------------------------------------------------------

@@ -221,11 +221,57 @@ module.exports = (sqlite) => {
           return { id: a.id, severity: a.severity, title: a.title, createdAt: a.createdAt, audience: a.audience, recipients: a.delivery && a.delivery.recipients };
         });
 
+        // channel reach (parents reachable per channel) — JSON membership, indexed role filter
+        const reach = (ch) => sqlite.prepare(
+          "SELECT count(*) c FROM users WHERE role='parent' AND EXISTS (SELECT 1 FROM json_each(doc,'$.reachedBy') WHERE value=?)"
+        ).get(ch).c;
+        const channelReach = { app: reach('app'), email: reach('email'), sms: reach('sms') };
+
+        // posts this week + engaged families (reacted or replied). Posts scale with content,
+        // not family count, so a content-scale scan here is bounded; the parent check is chunked SQL.
+        const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+        const allPosts = sqlite.prepare('SELECT doc FROM posts').all().map((r) => JSON.parse(r.doc));
+        const postsThisWeek = allPosts.filter((p) => p.createdAt > weekAgo).length;
+        const engagedIds = new Set();
+        for (const p of allPosts) {
+          for (const ids of Object.values(p.reactions || {})) for (const id of ids) engagedIds.add(id);
+          for (const c of p.comments || []) engagedIds.add(c.authorId);
+        }
+        let engaged = 0;
+        const eArr = [...engagedIds];
+        for (let i = 0; i < eArr.length; i += 900) {                       // stay under SQLite's bound-param cap
+          const chunk = eArr.slice(i, i + 900), ph = chunk.map(() => '?').join(',');
+          engaged += sqlite.prepare(`SELECT count(*) c FROM users WHERE role='parent' AND id IN (${ph})`).get(...chunk).c;
+        }
+
+        // top posts by engagement (reactions + comments), author embedded
+        const scored = allPosts
+          .map((p) => ({ p, react: Object.values(p.reactions || {}).reduce((n, a) => n + a.length, 0), comm: (p.comments || []).length }))
+          .map((x) => ({ ...x, score: x.react + x.comm }))
+          .sort((a, b) => b.score - a.score).slice(0, 4);
+        const topAuthors = fetchUsers(sqlite, scored.map((s) => s.p.authorId));
+        const topPosts = scored.map(({ p, react, comm }) => ({ id: p.id, title: p.title, audience: p.audience, createdAt: p.createdAt, reactions: react, comments: comm, author: topAuthors.get(p.authorId) || null }));
+
         return {
-          stats: { totalFamilies, verified, verifiedPct },
+          stats: { totalFamilies, verified, verifiedPct, postsThisWeek, engaged, engagedPct: totalFamilies ? Math.round((engaged / totalFamilies) * 1000) / 10 : 0 },
+          channelReach,
           perSchool,
+          topPosts,
           recentAlerts,
         };
+      },
+
+      // ------------------------------------------------------------------
+      // GET /api/unread?me — total inbound-unread across my conversations (the nav badge).
+      // ------------------------------------------------------------------
+      'GET /api/unread': ({ params }) => {
+        const meId = params.get('me') || '';
+        const mine = sqlite.prepare('SELECT doc FROM conversations').all()
+          .map((r) => JSON.parse(r.doc))
+          .filter((c) => (c.participantIds || []).includes(meId));
+        let count = 0;
+        for (const c of mine) for (const m of (c.messages || [])) if (m.senderId !== meId && !m.read) count += 1;
+        return { count };
       },
     },
   };

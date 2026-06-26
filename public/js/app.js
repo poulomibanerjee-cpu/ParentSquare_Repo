@@ -60,6 +60,7 @@ function switchPersona(uid) {
   const r = userById(uid).role;
   S.view = r === 'admin' ? 'dashboard' : 'home'; S.params = {};
   render();
+  C.refreshUnread().then(render);   // refresh the unread badge for the new persona
 }
 
 // most recent urgent/emergency alert relevant to actor, posted in last 36h
@@ -301,6 +302,7 @@ function setupPullToRefresh() {
   S.me = start.userId; S.lang = userById(S.me).language || 'en';
   S.view = userById(S.me).role === 'admin' ? 'dashboard' : 'home';
   render();
+  C.refreshUnread().then(render);   // populate the unread badge once the persona is set
   setupPullToRefresh();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

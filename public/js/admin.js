@@ -22,53 +22,46 @@ function bar(label, value, total, color) {
 }
 
 export function renderDashboard(main) {
-  const P = parents();
-  const verified = P.filter((u) => u.verified);
-  const reach = pct(verified.length, P.length);
-  const recentPosts = S.db.posts.filter((p) => (Date.now() - new Date(p.createdAt)) < 7 * 864e5);
-  const engagedIds = new Set();
-  S.db.posts.forEach((p) => { Object.values(p.reactions || {}).flat().forEach((id) => engagedIds.add(id)); (p.comments || []).forEach((c) => engagedIds.add(c.authorId)); });
-  const engagedParents = [...engagedIds].filter((id) => userById(id)?.role === 'parent').length;
-  const pendingMod = S.db.moderation.filter((m) => m.status === 'pending').length;
-
   main.appendChild(pageHead(L('Dashboard', 'Panel'), `${S.db.district.name} · ${fullDate(new Date().toISOString())}`,
     btn(L('Send Alert', 'Enviar alerta'), { kind: 'danger', iconName: 'alert', onclick: () => openSendAlert() })));
+  const slot = el('div', {}, el('p', { class: 'muted pad' }, L('Loading…', 'Cargando…')));
+  main.appendChild(slot);
 
-  main.appendChild(el('div', { class: 'dash-stats' },
-    statCard(reach + '%', L('Contact reach', 'Alcance de contacto'), `${verified.length}/${P.length} ${L('families verified', 'familias verificadas')}`, reach >= 80 ? 'good' : 'warn'),
-    statCard(P.length.toLocaleString(), L('Families', 'Familias'), L('across the network', 'en la red')),
-    statCard(String(recentPosts.length), L('Posts this week', 'Publicaciones esta semana'), L('all channels', 'todos los canales')),
-    statCard(pct(engagedParents, P.length) + '%', L('Engaged families', 'Familias activas'), `${engagedParents} ${L('reacted or replied', 'reaccionaron o respondieron')}`, 'good'),
-    statCard(String(pendingMod), L('Flagged for review', 'Marcados para revisión'), L('AI moderation', 'Moderación IA'), pendingMod ? 'warn' : '')));
+  (async () => {
+    const d = await C.dashboardData();                                   // SQL aggregates server-side (or computed on-device)
+    const s = d.stats, N = s.totalFamilies;
+    const pendingMod = (S.db.moderation || []).filter((m) => m.status === 'pending').length;
+    C.clear(slot);
 
-  // channel reachability
-  const byApp = P.filter((u) => (u.reachedBy || []).includes('app')).length;
-  const byEmail = P.filter((u) => (u.reachedBy || []).includes('email')).length;
-  const bySms = P.filter((u) => (u.reachedBy || []).includes('sms')).length;
-  main.appendChild(el('div', { class: 'dash-row' },
-    el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Channel reachability', 'Alcance por canal')),
-      bar('📱 ' + L('App push', 'App'), byApp, P.length, '#1f6feb'),
-      bar('✉️ ' + L('Email', 'Correo'), byEmail, P.length, '#8957e5'),
-      bar('💬 ' + L('Text (SMS)', 'Texto'), bySms, P.length, '#1a7f37'),
-      el('p', { class: 'muted tiny', style: { marginTop: '8px' } }, L('Smart Alerts text first, then fail over to voice for unconfirmed families.', 'Las alertas inteligentes envían texto primero, luego voz.'))),
-    el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Recent alert delivery', 'Entrega de alertas reciente')),
-      ...(S.db.alerts.slice(0, 2).map(alertMini)),
-      btn(L('View all alerts', 'Ver todas las alertas'), { kind: 'ghost', small: true, onclick: () => C.navigate('alerts') }))));
+    slot.appendChild(el('div', { class: 'dash-stats' },
+      statCard(s.verifiedPct + '%', L('Contact reach', 'Alcance de contacto'), `${s.verified}/${N} ${L('families verified', 'familias verificadas')}`, s.verifiedPct >= 80 ? 'good' : 'warn'),
+      statCard(N.toLocaleString(), L('Families', 'Familias'), L('across the network', 'en la red')),
+      statCard(String(s.postsThisWeek), L('Posts this week', 'Publicaciones esta semana'), L('all channels', 'todos los canales')),
+      statCard(s.engagedPct + '%', L('Engaged families', 'Familias activas'), `${s.engaged} ${L('reacted or replied', 'reaccionaron o respondieron')}`, 'good'),
+      statCard(String(pendingMod), L('Flagged for review', 'Marcados para revisión'), L('AI moderation', 'Moderación IA'), pendingMod ? 'warn' : '')));
 
-  // top posts
-  const top = S.db.posts.map((p) => ({ p, score: Object.values(p.reactions || {}).flat().length + (p.comments || []).length })).sort((a, b) => b.score - a.score).slice(0, 4);
-  main.appendChild(el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Top posts by engagement', 'Publicaciones con más interacción')),
-    el('div', { class: 'top-posts' }, ...top.map(({ p, score }) => el('div', { class: 'tp-row' },
-      avatar(userById(p.authorId), 30),
-      el('div', { class: 'tp-text' }, el('strong', {}, p.title), el('div', { class: 'muted tiny' }, (p.audience?.label || '') + ' · ' + timeAgo(p.createdAt))),
-      el('div', { class: 'tp-score' }, `❤️ ${Object.values(p.reactions || {}).flat().length}  💬 ${(p.comments || []).length}`))))));
+    slot.appendChild(el('div', { class: 'dash-row' },
+      el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Channel reachability', 'Alcance por canal')),
+        bar('📱 ' + L('App push', 'App'), d.channelReach.app, N, '#1f6feb'),
+        bar('✉️ ' + L('Email', 'Correo'), d.channelReach.email, N, '#8957e5'),
+        bar('💬 ' + L('Text (SMS)', 'Texto'), d.channelReach.sms, N, '#1a7f37'),
+        el('p', { class: 'muted tiny', style: { marginTop: '8px' } }, L('Smart Alerts text first, then fail over to voice for unconfirmed families.', 'Las alertas inteligentes envían texto primero, luego voz.'))),
+      el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Recent alert delivery', 'Entrega de alertas reciente')),
+        ...((S.db.alerts || []).slice(0, 2).map(alertMini)),
+        btn(L('View all alerts', 'Ver todas las alertas'), { kind: 'ghost', small: true, onclick: () => C.navigate('alerts') }))));
 
-  // per-school adoption (fixes "use varies a lot by school")
-  main.appendChild(el('div', { class: 'card' },
-    el('div', { class: 'rep-head' }, el('h3', { class: 'card-h' }, L('Engagement by school', 'Interacción por escuela')), btn(L('Full reports', 'Informes completos'), { small: true, kind: 'ghost', iconName: 'report', onclick: () => C.navigate('reports') })),
-    el('div', { class: 'school-rows' }, ...perSchoolStats().map((s) => el('div', { class: 'school-row' },
-      el('div', { class: 'sr-name' }, el('strong', {}, s.school), el('span', { class: 'muted tiny' }, `${s.families} ${L('families', 'familias')}`)),
-      el('div', { class: 'sr-bars' }, bar(L('Reach', 'Alcance'), s.verified, s.families, s.reachPct >= 80 ? 'var(--green)' : 'var(--amber)'), bar(L('Engaged', 'Activas'), s.engaged, s.families, '#1f6feb')))))));
+    slot.appendChild(el('div', { class: 'card' }, el('h3', { class: 'card-h' }, L('Top posts by engagement', 'Publicaciones con más interacción')),
+      el('div', { class: 'top-posts' }, ...d.topPosts.map((p) => el('div', { class: 'tp-row' },
+        avatar(p.author, 30),
+        el('div', { class: 'tp-text' }, el('strong', {}, p.title), el('div', { class: 'muted tiny' }, (p.audience?.label || '') + ' · ' + timeAgo(p.createdAt))),
+        el('div', { class: 'tp-score' }, `❤️ ${p.reactions}  💬 ${p.comments}`))))));
+
+    slot.appendChild(el('div', { class: 'card' },
+      el('div', { class: 'rep-head' }, el('h3', { class: 'card-h' }, L('Engagement by school', 'Interacción por escuela')), btn(L('Full reports', 'Informes completos'), { small: true, kind: 'ghost', iconName: 'report', onclick: () => C.navigate('reports') })),
+      el('div', { class: 'school-rows' }, ...d.perSchool.map((row) => el('div', { class: 'school-row' },
+        el('div', { class: 'sr-name' }, el('strong', {}, schoolById(row.schoolId)?.short || row.schoolId), el('span', { class: 'muted tiny' }, `${row.families} ${L('families', 'familias')}`)),
+        el('div', { class: 'sr-bars' }, bar(L('Reach', 'Alcance'), row.verified, row.families, row.verifiedPct >= 80 ? 'var(--green)' : 'var(--amber)')))))));
+  })().catch((e) => { C.clear(slot); slot.appendChild(el('div', { class: 'error' }, 'Dashboard error: ' + (e && e.message))); });
 }
 
 // ===========================================================================
@@ -107,24 +100,28 @@ function openAlertDetail(a) {
 
 export function renderAlerts(main) {
   const me = actor();
-  const alerts = me.role === 'admin' ? S.db.alerts : S.db.alerts.filter((a) => C.inAudience(me.id, a.audience));
   main.appendChild(pageHead(L('Alerts', 'Alertas'), me.role === 'admin' ? L('Urgent mass notifications & delivery reports', 'Notificaciones urgentes e informes de entrega') : L('Important notifications from your school', 'Notificaciones importantes de tu escuela'),
     me.role === 'admin' ? btn(L('Send Alert', 'Enviar alerta'), { kind: 'danger', iconName: 'alert', onclick: () => openSendAlert() }) : null));
+  const slot = el('div', { class: 'stack' }, el('p', { class: 'muted pad' }, L('Loading…', 'Cargando…')));
+  main.appendChild(slot);
 
-  if (!alerts.length) return main.appendChild(emptyState(L('No alerts', 'No hay alertas')));
-
-  main.appendChild(el('div', { class: 'stack' }, ...alerts.map((a) => {
-    const body = tx(a, 'body');
-    const d = a.delivery || {};
-    return el('article', { class: `card alert-card sev-${a.severity}`, onclick: me.role === 'admin' ? () => openAlertDetail(a) : null },
-      el('div', { class: 'ac-head' },
-        el('span', { class: 'ac-icon', html: icon('alert', 20) }),
-        el('div', {}, el('div', { class: 'ac-title' }, el('strong', {}, a.title), badge(a.severity, a.severity === 'info' ? 'cat' : 'warn'), a.smartAlert ? badge('⚡ Smart', 'cat') : null),
-          el('div', { class: 'muted tiny' }, `${userById(a.authorId)?.name} · ${timeAgo(a.createdAt)} · → ${a.audience?.label || ''}`)),
-        channelChips(a.channels)),
-      el('p', { class: 'ac-body' }, body.text),
-      me.role === 'admin' ? el('div', { class: 'am-stats muted tiny', style: { marginTop: '6px' } }, `${d.recipients || 0} ${L('sent', 'enviado')} · ${pct(d.opened, d.recipients)}% ${L('opened', 'abierto')} · ${pct(d.confirmed, d.recipients)}% ${L('confirmed', 'confirmado')} · ${L('tap for report', 'toca para ver informe')}`) : null);
-  })));
+  (async () => {
+    const { items: alerts } = await C.alertList({ me: me.id });          // scoped to me, newest-first, author embedded
+    C.clear(slot);
+    if (!alerts.length) { slot.appendChild(emptyState(L('No alerts', 'No hay alertas'))); return; }
+    alerts.forEach((a) => {
+      const body = tx(a, 'body');
+      const d = a.delivery || {};
+      slot.appendChild(el('article', { class: `card alert-card sev-${a.severity}`, onclick: me.role === 'admin' ? () => openAlertDetail(a) : null },
+        el('div', { class: 'ac-head' },
+          el('span', { class: 'ac-icon', html: icon('alert', 20) }),
+          el('div', {}, el('div', { class: 'ac-title' }, el('strong', {}, a.title), badge(a.severity, a.severity === 'info' ? 'cat' : 'warn'), a.smartAlert ? badge('⚡ Smart', 'cat') : null),
+            el('div', { class: 'muted tiny' }, `${a.author?.name || ''} · ${timeAgo(a.createdAt)} · → ${a.audience?.label || ''}`)),
+          channelChips(a.channels)),
+        el('p', { class: 'ac-body' }, body.text),
+        me.role === 'admin' ? el('div', { class: 'am-stats muted tiny', style: { marginTop: '6px' } }, `${d.recipients || 0} ${L('sent', 'enviado')} · ${pct(d.opened, d.recipients)}% ${L('opened', 'abierto')} · ${pct(d.confirmed, d.recipients)}% ${L('confirmed', 'confirmado')} · ${L('tap for report', 'toca para ver informe')}`) : null));
+    });
+  })().catch((e) => { C.clear(slot); slot.appendChild(el('div', { class: 'error' }, 'Alerts error: ' + (e && e.message))); });
 }
 
 export function openSendAlert() {
