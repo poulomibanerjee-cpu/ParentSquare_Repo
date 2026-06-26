@@ -1,49 +1,46 @@
 /* ============================================================================
- * Success Academy — Family Connect : zero-dependency local server
+ * Success Academy — Family Connect : local server (real DB tier, no auth)
  *   • serves the SPA from /public
- *   • GET  /api/state           -> full working DB (data/db.json)
- *   • POST /api/mutate {op,payload} -> apply op, persist, return new state
- *   • POST /api/reset           -> restore db.json from seed.json
+ *   • SQLite (node:sqlite, zero install) is the durable source of truth
+ *   • GET  /api/state                 -> full working DB (demo scale)
+ *   • POST /api/mutate {op,payload}   -> apply op, persist to SQLite, broadcast
+ *   • GET  /api/events                -> Server-Sent Events: live multi-user sync
+ *   • GET  /api/directory?q&role&school&limit&offset -> scoped, paginated, SQL-backed
+ *   • POST /api/reset                 -> restore from seed.json
  * Run:  node server.cjs   (then open http://localhost:4310)
  * ==========================================================================*/
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const DBL = require('./db.cjs');
 
 const PORT = process.env.PORT || 4310;
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
 const DATA = path.join(ROOT, 'data');
 const SEED = path.join(DATA, 'seed.json');
-const DB = path.join(DATA, 'db.json');
+const SQLITE = path.join(DATA, 'family-connect.db');
 
-// ---- ensure db.json exists (seed it once, and run seed.cjs if missing) -----
-function ensureDb() {
-  if (!fs.existsSync(SEED)) {
-    console.log('· seed.json missing — generating…');
-    require('child_process').execSync('node seed.cjs', { cwd: ROOT, stdio: 'inherit' });
-  }
-  if (!fs.existsSync(DB)) fs.copyFileSync(SEED, DB);
-}
-ensureDb();
+// ---- ensure seed + SQLite exist -------------------------------------------
+if (!fs.existsSync(DATA)) fs.mkdirSync(DATA, { recursive: true });
+if (!fs.existsSync(SEED)) { console.log('· seed.json missing — generating…'); require('child_process').execSync('node seed.cjs', { cwd: ROOT, stdio: 'inherit' }); }
+const sqlite = DBL.open(SQLITE);
+if (DBL.isEmpty(sqlite)) { console.log('· importing seed into SQLite…'); DBL.importSeed(sqlite, JSON.parse(fs.readFileSync(SEED, 'utf8'))); }
 
-// in-memory cache: parse db.json once, serve from memory, write-through on mutate
-let CACHE = null;
-const load = () => (CACHE || (CACHE = JSON.parse(fs.readFileSync(DB, 'utf8'))));
-const save = () => fs.writeFileSync(DB, JSON.stringify(CACHE));
+// in-memory working copy (demo scale): ops run here, then we persist the touched collection
+let db = DBL.loadAll(sqlite);
+
 const nowISO = () => new Date().toISOString();
 const rid = (p) => `${p}_${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 const find = (arr, id) => arr.find((x) => x.id === id);
 
 // ---------------------------------------------------------------------------
-// MUTATIONS — every user action funnels through here, then we persist + return
+// MUTATIONS — every user action funnels through here (identical to store.js)
 // ---------------------------------------------------------------------------
 const OPS = {
-  // ---- posts -------------------------------------------------------------
   react(db, { postId, userId, emoji }) {
     const p = find(db.posts, postId); if (!p) return;
     p.reactions ||= {};
-    // one reaction per user: clear them from every emoji first
     for (const e of Object.keys(p.reactions)) p.reactions[e] = p.reactions[e].filter((u) => u !== userId);
     const had = (p.reactions[emoji] || []).includes(userId);
     if (!had) (p.reactions[emoji] ||= []).push(userId);
@@ -65,7 +62,6 @@ const OPS = {
   },
   togglePin(db, { postId }) { const p = find(db.posts, postId); if (p) p.pinned = !p.pinned; },
 
-  // ---- messaging ---------------------------------------------------------
   sendMessage(db, { conversationId, senderId, body, lang }) {
     const c = find(db.conversations, conversationId); if (!c || !body?.trim()) return;
     c.messages.push({ id: rid('msg'), senderId, body: body.trim(), lang: lang || 'en', createdAt: nowISO(), read: false });
@@ -81,7 +77,6 @@ const OPS = {
     return conv.id;
   },
 
-  // ---- sign-ups ----------------------------------------------------------
   claimSlot(db, { signupId, slotId, userId, studentId, qty, note, addedBy }) {
     const su = find(db.signups, signupId); if (!su) return;
     const slot = find(su.slots, slotId); if (!slot) return;
@@ -99,7 +94,6 @@ const OPS = {
     slot.claims = (slot.claims || (slot.claimedBy || []).map((u) => ({ userId: u }))).filter((c) => c.userId !== userId); delete slot.claimedBy;
   },
 
-  // ---- forms -------------------------------------------------------------
   submitForm(db, { formId, userId, studentId, values, signature }) {
     const f = find(db.forms, formId); if (!f) return;
     f.responses ||= [];
@@ -108,7 +102,6 @@ const OPS = {
     if (existing) Object.assign(existing, rec); else f.responses.push(rec);
   },
 
-  // ---- events ------------------------------------------------------------
   rsvp(db, { eventId, userId, status }) {
     const e = find(db.events, eventId); if (!e) return;
     e.rsvps ||= { yes: [], no: [], maybe: [] };
@@ -116,45 +109,30 @@ const OPS = {
     if (['yes', 'no', 'maybe'].includes(status)) e.rsvps[status].push(userId);
   },
 
-  // ---- alerts (admin send) ----------------------------------------------
   sendAlert(db, { authorId, audience, title, body, severity, channels, smartAlert, recipients, scholarIds, scheduledFor }) {
     const grp = (db.groups || []).find((g) => g.id === audience?.id);
     const n = recipients != null ? recipients : (audience?.type === 'network' || !grp) ? db.users.filter((u) => u.role === 'parent').length : grp.memberIds.length;
     const useSms = channels.includes('sms');
-    const alert = {
+    const scheduled = scheduledFor && new Date(scheduledFor) > new Date();
+    db.alerts.unshift({
       id: rid('alert'), severity: severity || 'urgent', authorId, audience,
       title: title || '(untitled alert)', body: body || '', bodyEs: null,
       createdAt: nowISO(), channels, smartAlert: !!smartAlert, scholarIds: scholarIds || null, scheduledFor: scheduledFor || null,
-      delivery: {
-        recipients: n,
-        sms: useSms ? n : 0,
-        smsDelivered: useSms ? n - Math.floor(Math.random() * 3) : 0,
+      delivery: scheduled ? { recipients: n, sms: 0, smsDelivered: 0, voiceFailover: 0, email: 0, app: 0, opened: 0, confirmed: 0 } : {
+        recipients: n, sms: useSms ? n : 0, smsDelivered: useSms ? n - Math.floor(Math.random() * 3) : 0,
         voiceFailover: smartAlert && useSms ? Math.floor(Math.random() * 3) : 0,
-        email: channels.includes('email') ? n : 0,
-        app: channels.includes('app') ? Math.floor(n * 0.7) : 0,
-        opened: Math.floor(n * (0.55 + Math.random() * 0.3)),
-        confirmed: Math.floor(n * (0.4 + Math.random() * 0.25)),
+        email: channels.includes('email') ? n : 0, app: channels.includes('app') ? Math.floor(n * 0.7) : 0,
+        opened: Math.floor(n * (0.55 + Math.random() * 0.3)), confirmed: Math.floor(n * (0.4 + Math.random() * 0.25)),
       },
-    };
-    db.alerts.unshift(alert);
+    });
   },
 
-  // ---- attendance rules --------------------------------------------------
   toggleRule(db, { ruleId }) { const r = find(db.attendanceRules, ruleId); if (r) r.active = !r.active; },
-
-  // ---- fees --------------------------------------------------------------
   payFee(db, { feeId }) { const f = find(db.fees, feeId); if (f && f.status !== 'paid') { f.status = 'paid'; f.paidAt = nowISO(); } },
-
-  // ---- documents (acknowledge receipt of a secure document) --------------
   ackDocument(db, { docId, userId }) { const d = find(db.documents || [], docId); if (d && !(d.acknowledgedBy ||= []).includes(userId)) d.acknowledgedBy.push(userId); },
-
-  // ---- moderation --------------------------------------------------------
-  moderate(db, { modId, action }) { const m = find(db.moderation, modId); if (m) m.status = action; }, // 'approved' | 'blocked'
-
-  // ---- preferences -------------------------------------------------------
+  moderate(db, { modId, action }) { const m = find(db.moderation, modId); if (m) m.status = action; },
   savePrefs(db, { userId, prefs }) { db.prefs[userId] = { ...db.prefs[userId], ...prefs }; },
 
-  // ---- staff creation flows ----------------------------------------------
   addEvent(db, { authorId, audience, title, date, start, end, location, category, description }) {
     db.events.push({ id: rid('evt'), title: title || '(untitled)', date, start: start || '', end: end || null, location: location || '', schoolId: audience?.schoolId ?? null, audience, category: category || 'Event', description: description || '', rsvps: { yes: [], no: [], maybe: [] } });
   },
@@ -169,15 +147,34 @@ const OPS = {
   syncIntegration(db, { intId }) { const i = (db.integrations || []).find((x) => x.id === intId); if (i) i.lastSync = nowISO(); },
 };
 
+// which collection each op persists back to SQLite ('__prefs__' = the kv prefs blob)
+const OP_COLLECTION = {
+  react: 'posts', comment: 'posts', createPost: 'posts', togglePin: 'posts',
+  sendMessage: 'conversations', markRead: 'conversations', startConversation: 'conversations',
+  claimSlot: 'signups', unclaimSlot: 'signups', createSignup: 'signups',
+  submitForm: 'forms', createForm: 'forms',
+  rsvp: 'events', addEvent: 'events', eventCheckIn: 'events',
+  sendAlert: 'alerts', toggleRule: 'attendanceRules', payFee: 'fees',
+  ackDocument: 'documents', moderate: 'moderation', savePrefs: '__prefs__',
+  toggleAutomation: 'automations', syncIntegration: 'integrations',
+};
+
+// ---------------------------------------------------------------------------
+// Server-Sent Events — live multi-user sync (every mutation fans out)
+// ---------------------------------------------------------------------------
+const sseClients = new Set();
+function broadcast(evt) {
+  const line = `data: ${JSON.stringify(evt)}\n\n`;
+  for (const res of sseClients) { try { res.write(line); } catch { /* dropped */ } }
+}
+setInterval(() => { for (const res of sseClients) { try { res.write(': ping\n\n'); } catch { /* */ } } }, 25000).unref();
+
 // ---------------------------------------------------------------------------
 // HTTP plumbing
 // ---------------------------------------------------------------------------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.webmanifest': 'application/manifest+json' };
 const json = (res, code, obj) => { const s = JSON.stringify(obj); res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(s) }); res.end(s); };
-
-function body(req) {
-  return new Promise((resolve) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } }); });
-}
+const body = (req) => new Promise((resolve) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch { resolve({}); } }); });
 
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
@@ -186,7 +183,6 @@ function serveStatic(req, res) {
   if (!filePath.startsWith(PUBLIC)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      // SPA fallback for unknown non-asset paths
       if (!path.extname(filePath)) return fs.readFile(path.join(PUBLIC, 'index.html'), (e2, d2) => { if (e2) { res.writeHead(404); res.end('Not found'); } else { res.writeHead(200, { 'Content-Type': MIME['.html'] }); res.end(d2); } });
       res.writeHead(404); return res.end('Not found');
     }
@@ -198,15 +194,44 @@ function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   try {
     if (req.url.startsWith('/api/')) {
-      if (req.method === 'GET' && req.url === '/api/state') return json(res, 200, load());
-      if (req.method === 'POST' && req.url === '/api/reset') { CACHE = JSON.parse(fs.readFileSync(SEED, 'utf8')); save(); return json(res, 200, CACHE); }
-      if (req.method === 'POST' && req.url === '/api/mutate') {
+      const route = req.url.split('?')[0];
+
+      if (req.method === 'GET' && route === '/api/state') return json(res, 200, db);
+
+      // live multi-user sync
+      if (req.method === 'GET' && route === '/api/events') {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+        res.write('retry: 3000\n\n'); res.write('data: {"hello":true}\n\n');
+        sseClients.add(res);
+        req.on('close', () => sseClients.delete(res));
+        return;
+      }
+
+      // scoped, paginated, SQL-backed query — the shape that serves 100k users
+      if (req.method === 'GET' && route === '/api/directory') {
+        const p = new URL(req.url, 'http://x').searchParams;
+        const t0 = process.hrtime.bigint();
+        const out = DBL.searchUsers(sqlite, { q: p.get('q') || '', role: p.get('role') || '', schoolId: p.get('school') || '', limit: Math.min(100, +p.get('limit') || 25), offset: Math.max(0, +p.get('offset') || 0) });
+        out.queryMs = Number(process.hrtime.bigint() - t0) / 1e6;
+        return json(res, 200, out);
+      }
+
+      if (req.method === 'POST' && route === '/api/reset') {
+        DBL.reset(sqlite, JSON.parse(fs.readFileSync(SEED, 'utf8')));
+        db = DBL.loadAll(sqlite);
+        broadcast({ op: 'reset', at: nowISO() });
+        return json(res, 200, db);
+      }
+
+      if (req.method === 'POST' && route === '/api/mutate') {
         const { op, payload } = await body(req);
         const fn = OPS[op];
         if (!fn) return json(res, 400, { error: `unknown op: ${op}` });
-        const db = load();
         const result = fn(db, payload || {}) ?? null;
-        save();
+        const col = OP_COLLECTION[op];
+        if (col === '__prefs__') DBL.persistKv(sqlite, 'prefs', db.prefs);
+        else if (col) DBL.persistCollection(sqlite, col, db[col]);
+        broadcast({ op, at: nowISO() });
         return json(res, 200, { ok: true, result, state: db });
       }
       return json(res, 404, { error: 'no such endpoint' });
@@ -214,10 +239,11 @@ const server = http.createServer(async (req, res) => {
     serveStatic(req, res);
   } catch (e) {
     console.error(e);
-    json(res, 500, { error: String(e && e.message || e) });
+    json(res, 500, { error: String((e && e.message) || e) });
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  🟧 Success Academy — Family Connect → http://localhost:${PORT}\n  (ParentSquare-style demo · data persists to data/db.json · POST /api/reset to reset)\n`);
+  console.log(`\n  🟧 Family Connect → http://localhost:${PORT}`);
+  console.log(`  DB: SQLite (node:sqlite) at data/family-connect.db · live sync via /api/events · no auth\n`);
 });

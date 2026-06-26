@@ -21,14 +21,19 @@ const ping = () => _onChange && _onChange();
 // DATA — backed by an on-device store (serverless; works offline)
 // ---------------------------------------------------------------------------
 import * as store from './store.js';
-export async function loadState() { S.db = await store.loadState(); return S.db; }
+export async function loadState() {
+  S.db = await store.loadState();
+  store.subscribe((db) => { S.db = db; ping(); }); // server mode: re-render on live updates from other users
+  return S.db;
+}
 export async function act(op, payload) {
-  const res = store.mutate(op, payload);
-  if (res.state) S.db = res.state;
+  const res = await store.mutate(op, payload);
+  if (res && res.state) S.db = res.state;
   ping();
   return res;
 }
 export async function resetDb() { S.db = await store.reset(); ping(); }
+export const dataMode = () => store.mode();
 
 export function navigate(view, params = {}) { S.view = view; S.params = params; ping(); window.scrollTo(0, 0); }
 export function setPersona(userId) { S.me = userId; S.lang = (userById(userId)?.language) || 'en'; S.view = 'home'; S.params = {}; ping(); }

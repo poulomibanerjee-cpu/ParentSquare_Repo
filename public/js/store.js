@@ -1,22 +1,53 @@
 /* ============================================================================
- * store.js — serverless, on-device database (no backend required)
- * Mirrors the server's mutation ops exactly, but runs entirely in the browser
- * so the app works offline and can be wrapped for the App Store / TestFlight.
- * Data is seeded from the bundled seed.json and persisted to localStorage.
+ * store.js — data client with TWO modes, auto-detected at load:
+ *   • SERVER mode  → talks to the local API (SQLite-backed, shared, real-time
+ *     via Server-Sent Events). This is the "real backend" path.
+ *   • DEVICE mode  → falls back to an on-device store (localStorage + seed.json)
+ *     when no server is reachable, so the PWA / TestFlight build still works
+ *     fully offline. Mutation ops below mirror the server byte-for-byte.
  * ==========================================================================*/
 const KEY = 'sa-family-connect-db-v1';
-const SEED_VERSION = '2026-06-25.4'; // bump whenever seed/personas change → clients auto-re-seed
+const SEED_VERSION = '2026-06-25.4'; // bump whenever seed/personas change → device clients auto-re-seed
 let DB = null;
+let MODE = null;          // 'server' | 'device'
 let persistOK = true;
+let remoteCb = null;      // invoked when the server pushes a change (live multi-user sync)
 
 const nowISO = () => new Date().toISOString();
 const rid = (p) => `${p}_${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 const find = (arr, id) => (arr || []).find((x) => x.id === id);
 
+export const mode = () => MODE;
+export function subscribe(cb) { remoteCb = cb; }
+
+// ---------------------------------------------------------------------------
+// SERVER mode plumbing
+// ---------------------------------------------------------------------------
+async function tryServer() {
+  try {
+    const res = await fetch('/api/state', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && Array.isArray(data.users) ? data : null;
+  } catch { return null; }
+}
+function startSSE() {
+  if (typeof EventSource === 'undefined') return;
+  try {
+    const es = new EventSource('/api/events');
+    es.onmessage = async () => { // a mutation happened somewhere → pull fresh state and re-render
+      try { const res = await fetch('/api/state', { cache: 'no-store' }); if (res.ok) { DB = await res.json(); remoteCb && remoteCb(DB); } } catch { /* */ }
+    };
+  } catch { /* SSE unavailable — still works, just not live */ }
+}
+
+// ---------------------------------------------------------------------------
+// DEVICE mode plumbing (offline fallback)
+// ---------------------------------------------------------------------------
 function persist() {
-  if (!persistOK) return;
+  if (MODE !== 'device' || !persistOK) return;
   try { localStorage.setItem(KEY, JSON.stringify({ v: SEED_VERSION, db: DB })); }
-  catch (e) { persistOK = false; console.warn('[store] localStorage unavailable — running in-memory only', e?.name); }
+  catch (e) { persistOK = false; console.warn('[store] localStorage unavailable — in-memory only', e?.name); }
 }
 async function fetchSeed() {
   const res = await fetch('seed.json', { cache: 'no-store' });
@@ -24,18 +55,33 @@ async function fetchSeed() {
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// PUBLIC API
+// ---------------------------------------------------------------------------
 export async function loadState() {
   if (DB) return DB;
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (saved && saved.v === SEED_VERSION && saved.db) { DB = saved.db; return DB; } // same seed version → use on-device data
-  } catch { /* fall through to fresh seed */ }
-  DB = await fetchSeed(); // first run OR seed changed → load the fresh dataset
-  persist();
-  return DB;
+  const server = await tryServer();
+  if (server) { DB = server; MODE = 'server'; startSSE(); console.log('[store] SERVER mode — shared SQLite backend, live sync on'); return DB; }
+  MODE = 'device';
+  console.log('[store] DEVICE mode — on-device store (offline)');
+  try { const saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && saved.v === SEED_VERSION && saved.db) { DB = saved.db; return DB; } } catch { /* fall through */ }
+  DB = await fetchSeed(); persist(); return DB;
 }
-export async function reset() { DB = await fetchSeed(); persist(); return DB; }
-export function mutate(op, payload = {}) {
+
+export async function reset() {
+  if (MODE === 'server') { try { const res = await fetch('/api/reset', { method: 'POST' }); if (res.ok) { DB = await res.json(); return DB; } } catch { /* */ } }
+  DB = await fetchSeed(); persist(); return DB;
+}
+
+export async function mutate(op, payload = {}) {
+  if (MODE === 'server') {
+    try {
+      const res = await fetch('/api/mutate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, payload }) });
+      const data = await res.json();
+      if (data && data.state) DB = data.state;
+      return data;
+    } catch (e) { return { error: String((e && e.message) || e) }; }
+  }
   const fn = OPS[op];
   if (!fn) return { error: `unknown op: ${op}` };
   const result = fn(DB, payload) ?? null;
@@ -44,7 +90,7 @@ export function mutate(op, payload = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// MUTATIONS — kept byte-for-byte in step with server.cjs
+// MUTATIONS — DEVICE-mode implementations (kept byte-for-byte in step with server.cjs)
 // ---------------------------------------------------------------------------
 const OPS = {
   react(db, { postId, userId, emoji }) {
@@ -90,10 +136,10 @@ const OPS = {
     const su = find(db.signups, signupId); if (!su) return;
     const slot = find(su.slots, slotId); if (!slot) return;
     slot.claims ||= (slot.claimedBy || []).map((u) => ({ userId: u, qty: 1 })); delete slot.claimedBy;
-    if (slot.claims.some((c) => c.userId === userId)) return;                 // already signed up
+    if (slot.claims.some((c) => c.userId === userId)) return;
     const used = su.type === 'item' ? slot.claims.reduce((n, c) => n + (c.qty || 1), 0) : slot.claims.length;
     const remaining = slot.capacity - used;
-    if (remaining <= 0) return;                                                // full
+    if (remaining <= 0) return;
     const addQty = su.type === 'item' ? Math.min(Math.max(1, +qty || 1), remaining) : 1;
     slot.claims.push({ userId, studentId: studentId || null, qty: addQty, note: (note || '').trim(), addedBy: addedBy || null });
   },
@@ -142,7 +188,6 @@ const OPS = {
   moderate(db, { modId, action }) { const m = find(db.moderation, modId); if (m) m.status = action; },
   savePrefs(db, { userId, prefs }) { db.prefs[userId] = { ...db.prefs[userId], ...prefs }; },
 
-  // ---- staff creation flows ----------------------------------------------
   addEvent(db, { authorId, audience, title, date, start, end, location, category, description }) {
     db.events.push({ id: rid('evt'), title: title || '(untitled)', date, start: start || '', end: end || null, location: location || '', schoolId: audience?.schoolId ?? null, audience, category: category || 'Event', description: description || '', rsvps: { yes: [], no: [], maybe: [] } });
   },
