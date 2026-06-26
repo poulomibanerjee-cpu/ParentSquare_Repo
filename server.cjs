@@ -30,6 +30,24 @@ if (DBL.isEmpty(sqlite)) { console.log('· importing seed into SQLite…'); DBL.
 // in-memory working copy (demo scale): ops run here, then we persist the touched collection
 let db = DBL.loadAll(sqlite);
 
+// ---- mount feature API modules from ./api/*.cjs (each: module.exports = (sqlite) => ({ routes })) ----
+// Resilient: a broken/half-written module is logged and skipped, never crashes the server.
+const API_MODULES = {}; // "METHOD /path" -> async handler({ params, body })
+(function mountApiModules() {
+  const dir = path.join(ROOT, 'api');
+  if (!fs.existsSync(dir)) return;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.cjs'))) {
+    try {
+      const factory = require(path.join(dir, f));
+      const mod = typeof factory === 'function' ? factory(sqlite) : null;
+      if (mod && mod.routes) {
+        for (const [k, h] of Object.entries(mod.routes)) API_MODULES[k] = h;
+        console.log(`· mounted api/${f}: ${Object.keys(mod.routes).join(', ')}`);
+      }
+    } catch (e) { console.error(`· skipped api/${f}: ${e.message}`); }
+  }
+})();
+
 const nowISO = () => new Date().toISOString();
 const rid = (p) => `${p}_${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 const find = (arr, id) => arr.find((x) => x.id === id);
@@ -233,6 +251,13 @@ const server = http.createServer(async (req, res) => {
         else if (col) DBL.persistCollection(sqlite, col, db[col]);
         broadcast({ op, at: nowISO() });
         return json(res, 200, { ok: true, result, state: db });
+      }
+      // feature API modules mounted from ./api/*.cjs
+      const mkey = `${req.method} ${route}`;
+      if (API_MODULES[mkey]) {
+        const params = new URL(req.url, 'http://x').searchParams;
+        const reqBody = req.method === 'POST' ? await body(req) : undefined;
+        return json(res, 200, await API_MODULES[mkey]({ params, body: reqBody }));
       }
       return json(res, 404, { error: 'no such endpoint' });
     }
