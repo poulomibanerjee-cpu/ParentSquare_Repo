@@ -195,6 +195,7 @@ const OPS = {
     return rec.id;
   },
   deleteAutomation(db, { id }) { db.automations = (db.automations || []).filter((a) => a.id !== id); },
+  saveCalendarConfig(db, { config }) { db.calendarConfig = { categories: (config && config.categories) || [], keyDates: (config && config.keyDates) || [] }; },
 };
 
 // which collection each op persists back to SQLite ('__prefs__' = the kv prefs blob)
@@ -210,6 +211,7 @@ const OP_COLLECTION = {
   saveSmartList: 'smartLists', deleteSmartList: 'smartLists',
   createGroup: 'groups', updateGroup: 'groups', deleteGroup: 'groups',
   saveAutomation: 'automations', deleteAutomation: 'automations',
+  saveCalendarConfig: '__calcfg__',
 };
 const DELETE_OPS = new Set(['deleteSmartList', 'deleteGroup', 'deleteAutomation']); // shrink a collection → full-replace
 
@@ -284,6 +286,7 @@ const server = http.createServer(async (req, res) => {
         const result = fn(db, payload || {}) ?? null;
         const col = OP_COLLECTION[op];
         if (col === '__prefs__') DBL.persistKv(sqlite, 'prefs', db.prefs);
+        else if (col === '__calcfg__') DBL.persistKv(sqlite, 'calendarConfig', db.calendarConfig);
         else if (col) (DELETE_OPS.has(op) ? DBL.replaceCollection : DBL.persistCollection)(sqlite, col, db[col]);
         broadcast({ op, at: nowISO() });
         return json(res, 200, { ok: true, result, state: db });

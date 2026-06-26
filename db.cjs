@@ -16,7 +16,7 @@ const ARRAY_COLLECTIONS = [
   'documents', 'automations', 'integrations', 'moderation', 'personas', 'smartLists',
 ];
 // singletons / maps → key/value table
-const KV_KEYS = ['meta', 'district', 'guardianMap', 'studentMap', 'prefs'];
+const KV_KEYS = ['meta', 'district', 'guardianMap', 'studentMap', 'prefs', 'calendarConfig'];
 
 function open(dbPath) {
   const db = new DatabaseSync(dbPath);

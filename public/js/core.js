@@ -248,6 +248,32 @@ export function countSmartList(list) {
   const ctx = { atRisk: _atRiskSet() };
   return parents.filter((u) => matchSmartList(u, list, ctx)).length;
 }
+
+// ---------------------------------------------------------------------------
+// CALENDAR CONFIG — event categories + key academic-calendar dates (admin-editable)
+// ---------------------------------------------------------------------------
+const DEFAULT_CALENDAR = {
+  categories: [
+    { name: 'Academic', color: '#1f6feb' },
+    { name: 'Athletics', color: '#1a7f37' },
+    { name: 'Arts', color: '#6e40c9' },
+    { name: 'Community', color: '#E0521C' },
+    { name: 'Holiday', color: '#cf222e' },
+  ],
+  keyDates: [
+    { label: 'Last day of school (2025–26)', date: '2026-06-26', type: 'term' },
+    { label: 'Summer recess begins', date: '2026-06-29', type: 'holiday' },
+    { label: 'First day of school (2026–27)', date: '2026-09-02', type: 'term' },
+  ],
+};
+export function calendarConfig() {
+  const c = S.db?.calendarConfig;
+  if (c && (c.categories?.length || c.keyDates?.length)) {
+    return { categories: c.categories?.length ? c.categories : DEFAULT_CALENDAR.categories, keyDates: c.keyDates || [] };
+  }
+  return JSON.parse(JSON.stringify(DEFAULT_CALENDAR));
+}
+export const eventCategories = () => calendarConfig().categories;
 export const audienceCount = (audience) => resolveRecipients(audience).length;
 
 // scholars a given parent has within a post/item's audience (fixes child-specific labeling)

@@ -217,6 +217,8 @@ function viewResponses(form) {
 // CALENDAR / EVENTS
 // ===========================================================================
 const CAT_COLOR = { Athletics: '#1a7f37', Academic: '#1f6feb', Classroom: '#8957e5', Ceremony: '#bf3989', Meeting: '#9a6700', Calendar: '#6e7781', Program: '#bc4c00' };
+// event color comes from the admin-configured categories first, then legacy fallbacks
+const catColor = (name) => (C.eventCategories().find((c) => c.name === name) || {}).color || CAT_COLOR[name] || '#1f6feb';
 
 function rsvpBar(e) {
   const me = actor();
@@ -250,7 +252,7 @@ function openRsvpRoster(eventId) {
 function eventRow(e) {
   const d = new Date(e.date);
   return el('article', { class: 'card event' },
-    el('div', { class: 'ev-date', style: { background: CAT_COLOR[e.category] || '#1f6feb' } },
+    el('div', { class: 'ev-date', style: { background: catColor(e.category) } },
       el('span', { class: 'ev-mon' }, d.toLocaleDateString(undefined, { month: 'short' })), el('span', { class: 'ev-day' }, String(d.getDate()))),
     el('div', { class: 'ev-main' },
       el('div', { class: 'ev-top' }, el('h3', {}, e.title), badge(e.category, 'cat')),
@@ -287,7 +289,16 @@ export function renderCalendar(main) {
   if (sel) main.appendChild(el('div', { class: 'child-filter' }, el('span', { class: 'muted tiny' }, `${L('Showing', 'Mostrando')} ${today.toLocaleString(undefined, { month: 'short' })} ${sel}`), btn(L('Show all', 'Ver todos'), { small: true, kind: 'ghost', onclick: () => C.navigate('calendar', {}) })));
   main.appendChild(el('div', { class: 'cal-layout' },
     el('div', { class: 'cal-events stack' }, ...(shown.length ? shown.map(eventRow) : [emptyState(L('No events on this day', 'Sin eventos este día'))])),
-    el('div', { class: 'cal-side' }, miniMonth(events, sel))));
+    el('div', { class: 'cal-side' }, miniMonth(events, sel), keyDatesCard())));
+}
+
+// upcoming key dates from the admin calendar config (no-school days, term boundaries, etc.)
+function keyDatesCard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = C.calendarConfig().keyDates.filter((d) => d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 5);
+  if (!dates.length) return null;
+  return el('div', { class: 'card', style: { marginTop: '14px' } }, el('h4', { class: 'card-h' }, L('Key dates', 'Fechas clave')),
+    el('div', { class: 'stack', style: { gap: '9px' } }, ...dates.map((d) => el('div', {}, el('strong', { style: { fontSize: '13px' } }, d.label), el('div', { class: 'muted tiny' }, fullDate(d.date))))));
 }
 
 // ===========================================================================
@@ -362,8 +373,9 @@ export function openSignupComposer() {
 export function openEventComposer() {
   const me = actor();
   const { sel: audSel, first } = audienceSelect(me, (a) => (f.audience = a));
-  const f = { title: '', date: '', start: '', end: '', location: '', category: 'Event', description: '', audience: first };
-  const catSel = el('select', { class: 'inp', onchange: (e) => (f.category = e.target.value) }, ...['Event', 'Academic', 'Athletics', 'Classroom', 'Ceremony', 'Meeting', 'Program'].map((c) => el('option', {}, c)));
+  const cats = C.eventCategories();
+  const f = { title: '', date: '', start: '', end: '', location: '', category: (cats[0] || {}).name || 'Event', description: '', audience: first };
+  const catSel = el('select', { class: 'inp', onchange: (e) => (f.category = e.target.value) }, ...cats.map((c) => el('option', { selected: c.name === f.category }, c.name)));
   const m = modal({
     title: L('New Event', 'Nuevo evento'),
     body: el('div', { class: 'form-grid' },

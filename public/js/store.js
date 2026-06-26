@@ -232,4 +232,5 @@ const OPS = {
     return rec.id;
   },
   deleteAutomation(db, { id }) { db.automations = (db.automations || []).filter((a) => a.id !== id); },
+  saveCalendarConfig(db, { config }) { db.calendarConfig = { categories: (config && config.categories) || [], keyDates: (config && config.keyDates) || [] }; },
 };
