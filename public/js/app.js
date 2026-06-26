@@ -115,7 +115,7 @@ function topbar() {
       el('div', { class: 'brand-text' }, el('strong', {}, d.shortName), el('span', {}, 'Family Connect'))),
     // iOS-style collapsing title: shows the current screen name once the large title scrolls under the bar
     el('div', { class: 'nav-title', id: 'nav-title' }),
-    el('div', { class: 'topbar-right' }, langToggle, personaWrap));
+    el('div', { class: 'topbar-right' }, C.isViewer() ? el('span', { class: 'badge warn viewer-pill', html: icon('shield', 13) + `<span>${C.L('View only', 'Solo lectura')}</span>` }) : null, langToggle, personaWrap));
 }
 
 // unread/attention badge count for a given nav view
@@ -204,7 +204,7 @@ function alertBanner() {
 // header compose button (teacher/admin) shown on Posts/Home + Alerts
 function shellActions() {
   const me = actor();
-  if (me.role === 'parent') return null;
+  if (me.role === 'parent' || C.isViewer()) return null;   // viewers are read-only — no compose/send affordances
   const acts = [];
   if (S.view === 'home') acts.push(el('button', { class: 'fab', onclick: () => openCompose(), html: icon('plus', 18) + `<span>${C.L('New Post', 'Nueva publicación')}</span>` }));
   if (me.role === 'admin' && S.view === 'alerts') acts.push(el('button', { class: 'fab danger', onclick: () => openSendAlert(), html: icon('alert', 17) + `<span>${C.L('Send Alert', 'Enviar alerta')}</span>` }));

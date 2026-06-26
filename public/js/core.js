@@ -27,7 +27,16 @@ export async function loadState() {
   store.subscribe((db) => { S.db = db; ping(); refreshUnread().then(ping); }); // live updates: re-render + refresh the unread badge
   return S.db;
 }
+// read-only "admin viewer" accounts — they see everything an admin does but can't change data
+// (demo: Abhinav evaluates safely). In production this is a role/claim, not a hardcoded id.
+const VIEWER_IDS = new Set(['usr_abhinav']);
+export const isViewer = () => VIEWER_IDS.has(S.me);
+
 export async function act(op, payload) {
+  if (isViewer() && op !== 'markRead') {                                   // markRead is automatic/cosmetic — allow it silently
+    toast(L('View-only access — changes are disabled for this account', 'Acceso de solo lectura — los cambios están desactivados'));
+    return { viewer: true };
+  }
   const res = await store.mutate(op, payload);
   if (res && res.state) S.db = res.state;
   ping();

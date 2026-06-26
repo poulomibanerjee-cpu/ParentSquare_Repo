@@ -64,7 +64,7 @@ function commentBlock(p) {
   const input = el('input', { class: 'cm-input', placeholder: L('Write a comment…', 'Escribe un comentario…'), oninput: (e) => (val = e.target.value), onkeydown: (e) => { if (e.key === 'Enter' && val.trim()) submit(); } });
   const submit = () => { if (val.trim()) act('comment', { postId: p.id, userId: S.me, body: val }); };
   return el('div', {}, list,
-    el('div', { class: 'cm-add' }, avatar(actor(), 28), input, el('button', { class: 'icon-btn send', html: icon('send', 18), onclick: submit })));
+    C.isViewer() ? null : el('div', { class: 'cm-add' }, avatar(actor(), 28), input, el('button', { class: 'icon-btn send', html: icon('send', 18), onclick: submit })));
 }
 
 function audienceTag(p) {
@@ -93,8 +93,8 @@ export function postCard(p) {
     el('h3', { class: 'post-title' }, p.title),
     el('div', { class: 'post-body' }, el('p', {}, text), body.translated ? translatedTag() : null),
     (p.attachments && p.attachments.length) ? el('div', { class: 'attach' + (p.attachments.length > 1 ? ' multi' : '') }, ...p.attachments.map(photoTile)) : null,
-    el('div', { class: 'post-foot' }, reactionBar(p),
-      me.role !== 'parent' ? el('button', { class: 'pin-btn', onclick: () => act('togglePin', { postId: p.id }) }, p.pinned ? L('Unpin', 'Desfijar') : L('Pin', 'Fijar')) : null),
+    el('div', { class: 'post-foot' }, C.isViewer() ? el('span', { class: 'muted tiny' }, `❤️ ${Object.values(p.reactions || {}).flat().length}  💬 ${(p.comments || []).length}`) : reactionBar(p),
+      (me.role !== 'parent' && !C.isViewer()) ? el('button', { class: 'pin-btn', onclick: () => act('togglePin', { postId: p.id }) }, p.pinned ? L('Unpin', 'Desfijar') : L('Pin', 'Fijar')) : null),
     commentBlock(p));
   return card;
 }

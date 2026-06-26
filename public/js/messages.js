@@ -71,7 +71,7 @@ function threadView(data, showBack) {
   };
   const composer = el('div', { class: 'composer' }, input, el('button', { class: 'send-btn', html: icon('send', 20), onclick: send }));
 
-  return el('div', { class: 'thread' }, head, body, composer);
+  return el('div', { class: 'thread' }, head, body, C.isViewer() ? el('div', { class: 'composer' }, el('span', { class: 'muted tiny', style: { padding: '6px 4px' } }, L('View-only access — messaging is disabled', 'Solo lectura — la mensajería está desactivada'))) : composer);
 }
 
 export function renderMessages(main) {
@@ -92,7 +92,7 @@ export function renderMessages(main) {
     // on mobile, an open thread takes over the screen (with a back button) — skip the page header for room
     if (!(mobile && active)) {
       main.appendChild(pageHead(L('Messages', 'Mensajes'), L('Two-way, auto-translated conversations with staff & families', 'Conversaciones bidireccionales y traducidas'),
-        btn(L('New Message', 'Nuevo mensaje'), { kind: 'primary', iconName: 'plus', onclick: () => openNewMessage() })));
+        C.isViewer() ? null : btn(L('New Message', 'Nuevo mensaje'), { kind: 'primary', iconName: 'plus', onclick: () => openNewMessage() })));
     }
 
     const list = el('div', { class: 'conv-list' }, convs.length ? null : el('p', { class: 'muted pad' }, L('No conversations yet', 'No hay conversaciones')),
