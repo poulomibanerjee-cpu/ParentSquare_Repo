@@ -46,6 +46,31 @@ function loadGroups(db) {
 
 const getUserRow = (db, id) => db.prepare('SELECT id,name,role,school_id FROM users WHERE id=?').get(id);
 
+// per-user engagement aggregate (the Salesforce-style profile read) — content-scale scan, one user
+function engagementOf(db, userId) {
+  let reacted = 0, comments = 0, messages = 0, rsvps = 0, forms = 0, docs = 0;
+  for (const r of db.prepare('SELECT doc FROM posts').all()) { const p = JSON.parse(r.doc); if (Object.values(p.reactions || {}).some((a) => a.includes(userId))) reacted++; for (const c of p.comments || []) if (c.authorId === userId) comments++; }
+  for (const r of db.prepare('SELECT doc FROM conversations').all()) { const c = JSON.parse(r.doc); for (const m of c.messages || []) if (m.senderId === userId) messages++; }
+  for (const r of db.prepare('SELECT doc FROM events').all()) { const e = JSON.parse(r.doc); if (['yes', 'no', 'maybe'].some((k) => (e.rsvps?.[k] || []).includes(userId))) rsvps++; }
+  for (const r of db.prepare('SELECT doc FROM forms').all()) { const f = JSON.parse(r.doc); if ((f.responses || []).some((x) => x.userId === userId)) forms++; }
+  for (const r of db.prepare('SELECT doc FROM documents').all()) { const d = JSON.parse(r.doc); if ((d.acknowledgedBy || []).includes(userId)) docs++; }
+  const score = reacted + comments * 2 + messages * 2 + rsvps + forms * 2 + docs;
+  return { reacted, comments, messages, rsvps, forms, docs, score, level: score >= 6 ? 'High' : score >= 2 ? 'Medium' : 'Low' };
+}
+
+// network-wide engaged-parent ids (one pass over content) + per-user tallies for exports
+function engagementScan(db) {
+  const engaged = new Set();
+  const tally = new Map(); // userId -> { reacted, comments, messages, rsvps, forms }
+  const bump = (id, k) => { if (!id) return; const t = tally.get(id) || { reacted: 0, comments: 0, messages: 0, rsvps: 0, forms: 0 }; t[k]++; tally.set(id, t); engaged.add(id); };
+  let reactions = 0, replies = 0;
+  for (const r of db.prepare('SELECT doc FROM posts').all()) { const p = JSON.parse(r.doc); for (const a of Object.values(p.reactions || {})) { reactions += a.length; for (const id of a) bump(id, 'reacted'); } for (const c of p.comments || []) { replies++; bump(c.authorId, 'comments'); } }
+  for (const r of db.prepare('SELECT doc FROM conversations').all()) { const c = JSON.parse(r.doc); for (const m of c.messages || []) bump(m.senderId, 'messages'); }
+  for (const r of db.prepare('SELECT doc FROM events').all()) { const e = JSON.parse(r.doc); for (const k of ['yes', 'no', 'maybe']) for (const id of (e.rsvps?.[k] || [])) bump(id, 'rsvps'); }
+  for (const r of db.prepare('SELECT doc FROM forms').all()) { const f = JSON.parse(r.doc); for (const x of f.responses || []) bump(x.userId, 'forms'); }
+  return { engaged, tally, reactions, replies };
+}
+
 // Is `me` (already-resolved role + school + group sets) allowed to see this post/alert audience?
 //   admin   → everything
 //   teacher → groups they lead · anything in their school · network-wide
