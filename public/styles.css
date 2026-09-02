@@ -600,6 +600,22 @@ button.cal-cell:hover { background: var(--bg); }
 .school-row { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center; }
 .sr-name strong { display: block; } .sr-bars { display: flex; flex-direction: column; gap: 8px; }
 
+/* ---------- schools page ---------- */
+.school-list { display: flex; flex-direction: column; gap: 16px; }
+.school-list-row { display: grid; grid-template-columns: 190px 1fr 160px; gap: 18px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.school-list-row:last-child { border-bottom: none; padding-bottom: 0; }
+.slr-name { display: flex; align-items: center; gap: 10px; }
+.slr-name strong { display: block; font-size: 14.5px; }
+.school-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.slr-stats { display: flex; gap: 22px; }
+.slr-stat { text-align: center; }
+.slr-stat strong { display: block; font-size: 16px; }
+.slr-bar { min-width: 140px; }
+@media (max-width: 860px) {
+  .school-list-row { grid-template-columns: 1fr; gap: 10px; }
+  .slr-stats { justify-content: space-between; }
+}
+
 /* roster */
 .roster { display: flex; flex-direction: column; gap: 6px; }
 .roster-row { display: flex; align-items: center; gap: 12px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; }

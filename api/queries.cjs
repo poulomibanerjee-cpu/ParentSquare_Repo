@@ -287,6 +287,46 @@ module.exports = (sqlite) => {
       },
 
       // ------------------------------------------------------------------
+      // GET /api/schools — one row per school: families/students/posts/alerts/
+      // reach/engagement. Small collections (schools, groups) are a handful of
+      // rows so a full scan is fine; the per-parent counts reuse the same
+      // indexed school_id/role columns as /api/dashboard.
+      // ------------------------------------------------------------------
+      'GET /api/schools': () => {
+        const schools = sqlite.prepare('SELECT doc FROM schools').all().map((r) => JSON.parse(r.doc));
+        const groups = sqlite.prepare('SELECT doc FROM groups').all().map((r) => JSON.parse(r.doc));
+        const groupSchool = new Map(groups.map((g) => [g.id, g.schoolId]));
+        const allPosts = sqlite.prepare('SELECT doc FROM posts').all().map((r) => JSON.parse(r.doc));
+        const allAlerts = sqlite.prepare('SELECT doc FROM alerts').all().map((r) => JSON.parse(r.doc));
+        const allStudents = sqlite.prepare('SELECT doc FROM students').all().map((r) => JSON.parse(r.doc));
+        const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+        const schoolOf = (a) => a.schoolId ?? groupSchool.get(a.audience?.id) ?? null;
+
+        const engagedIds = new Set();
+        for (const p of allPosts) {
+          for (const ids of Object.values(p.reactions || {})) for (const id of ids) engagedIds.add(id);
+          for (const c of p.comments || []) engagedIds.add(c.authorId);
+        }
+
+        return schools.map((s) => {
+          const families = sqlite.prepare("SELECT count(*) c FROM users WHERE role='parent' AND school_id=?").get(s.id).c;
+          const verified = sqlite.prepare("SELECT count(*) c FROM users WHERE role='parent' AND school_id=? AND verified=1").get(s.id).c;
+          const schoolParentIds = sqlite.prepare("SELECT id FROM users WHERE role='parent' AND school_id=?").all(s.id).map((r) => r.id);
+          const engaged = schoolParentIds.filter((id) => engagedIds.has(id)).length;
+          const posts = allPosts.filter((p) => schoolOf(p) === s.id);
+          const alerts = allAlerts.filter((a) => schoolOf(a) === s.id);
+          return {
+            schoolId: s.id, name: s.name, short: s.short, level: s.level, color: s.color,
+            families, students: allStudents.filter((x) => x.schoolId === s.id).length,
+            posts: posts.length, postsThisWeek: posts.filter((p) => p.createdAt > weekAgo).length,
+            alerts: alerts.length,
+            verified, verifiedPct: families ? Math.round((verified / families) * 1000) / 10 : 0,
+            engaged, engagedPct: families ? Math.round((engaged / families) * 1000) / 10 : 0,
+          };
+        }).sort((a, b) => b.families - a.families);
+      },
+
+      // ------------------------------------------------------------------
       // GET /api/unread?me — total inbound-unread across my conversations (the nav badge).
       // ------------------------------------------------------------------
       'GET /api/unread': ({ params }) => {

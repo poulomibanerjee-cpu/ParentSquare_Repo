@@ -8,14 +8,14 @@ import { renderMessages } from './messages.js';
 import { renderSignups, renderForms, renderCalendar } from './engage.js';
 import { renderPayments, renderAttendance, renderDocuments } from './records.js';
 import { renderDirectory, renderSettings } from './directory.js';
-import { renderDashboard, renderModeration, renderAlerts, renderAutomations, renderReports, renderIntegrations } from './admin.js';
+import { renderDashboard, renderSchools, renderModeration, renderAlerts, renderAutomations, renderReports, renderIntegrations } from './admin.js';
 import { renderConfig } from './config.js';
 
 const VIEWS = {
   home: renderFeed, messages: renderMessages, signups: renderSignups, forms: renderForms,
   calendar: renderCalendar, payments: renderPayments, attendance: renderAttendance,
   documents: renderDocuments, directory: renderDirectory, settings: renderSettings,
-  dashboard: renderDashboard, moderation: renderModeration, alerts: renderAlerts,
+  dashboard: renderDashboard, schools: renderSchools, moderation: renderModeration, alerts: renderAlerts,
   automations: renderAutomations, reports: renderReports, integrations: renderIntegrations,
   config: renderConfig,
 };
@@ -38,7 +38,8 @@ const NAV = {
     ['settings', 'Settings', 'Ajustes', 'settings'],
   ],
   admin: [
-    ['dashboard', 'Dashboard', 'Panel', 'chart'], ['reports', 'Reports', 'Informes', 'report'],
+    ['dashboard', 'Dashboard', 'Panel', 'chart'], ['schools', 'Schools', 'Escuelas', 'pin'],
+    ['reports', 'Reports', 'Informes', 'report'],
     ['home', 'Posts', 'Publicaciones', 'home'], ['alerts', 'Alerts', 'Alertas', 'bell'],
     ['automations', 'Automations', 'Automatizaciones', 'bolt'], ['moderation', 'Moderation', 'Moderación', 'shield'],
     ['messages', 'Messages', 'Mensajes', 'message'], ['signups', 'Sign-Ups', 'Inscripciones', 'hand'],

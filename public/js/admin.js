@@ -65,6 +65,45 @@ export function renderDashboard(main) {
 }
 
 // ===========================================================================
+// SCHOOLS — one row per school (families, students, posts, alerts, reach, engagement)
+// ===========================================================================
+export function renderSchools(main) {
+  main.appendChild(pageHead(L('Schools', 'Escuelas'), `${S.db.district.name} · ${L('every location in the network', 'cada ubicación en la red')}`));
+  const slot = el('div', {}, el('p', { class: 'muted pad' }, L('Loading…', 'Cargando…')));
+  main.appendChild(slot);
+
+  (async () => {
+    const rows = await C.schoolsData();
+    C.clear(slot);
+
+    const totals = rows.reduce((t, r) => ({
+      families: t.families + r.families, students: t.students + r.students,
+      posts: t.posts + r.posts, alerts: t.alerts + r.alerts, verified: t.verified + r.verified,
+    }), { families: 0, students: 0, posts: 0, alerts: 0, verified: 0 });
+
+    slot.appendChild(el('div', { class: 'dash-stats' },
+      statCard(String(rows.length), L('Schools', 'Escuelas'), L('in the network', 'en la red')),
+      statCard(totals.families.toLocaleString(), L('Families', 'Familias'), L('across all schools', 'en todas las escuelas')),
+      statCard(totals.students.toLocaleString(), L('Students', 'Estudiantes'), L('across all schools', 'en todas las escuelas')),
+      statCard(pct(totals.verified, totals.families) + '%', L('Network reach', 'Alcance de la red'), `${totals.verified}/${totals.families} ${L('families verified', 'familias verificadas')}`, pct(totals.verified, totals.families) >= 80 ? 'good' : 'warn')));
+
+    slot.appendChild(el('div', { class: 'card' },
+      el('h3', { class: 'card-h' }, L('By school', 'Por escuela')),
+      el('div', { class: 'school-list' }, ...rows.map((r) => el('div', { class: 'school-list-row' },
+        el('div', { class: 'slr-name' },
+          el('span', { class: 'school-dot', style: { background: r.color || 'var(--primary)' } }),
+          el('div', {}, el('strong', {}, r.name), el('span', { class: 'muted tiny' }, r.level))),
+        el('div', { class: 'slr-stats' },
+          el('div', { class: 'slr-stat' }, el('strong', {}, String(r.posts)), el('span', { class: 'muted tiny' }, L('posts', 'publicaciones'))),
+          el('div', { class: 'slr-stat' }, el('strong', {}, String(r.alerts)), el('span', { class: 'muted tiny' }, L('alerts', 'alertas'))),
+          el('div', { class: 'slr-stat' }, el('strong', {}, String(r.students)), el('span', { class: 'muted tiny' }, L('students', 'estudiantes'))),
+          el('div', { class: 'slr-stat' }, el('strong', {}, String(r.families)), el('span', { class: 'muted tiny' }, L('families', 'familias'))),
+          el('div', { class: 'slr-stat' }, el('strong', {}, r.engagedPct + '%'), el('span', { class: 'muted tiny' }, L('engaged', 'participación')))),
+        el('div', { class: 'slr-bar' }, bar(L('Reach', 'Alcance'), r.verified, r.families, r.verifiedPct >= 80 ? 'var(--green)' : 'var(--amber)')))))));
+  })().catch((e) => { C.clear(slot); slot.appendChild(el('div', { class: 'error' }, 'Schools error: ' + (e && e.message))); });
+}
+
+// ===========================================================================
 // ALERTS
 // ===========================================================================
 function alertMini(a) {

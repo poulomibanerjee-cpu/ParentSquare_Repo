@@ -174,6 +174,35 @@ export async function dashboardData() {
   return { stats: { totalFamilies: P.length, verified, verifiedPct: P.length ? Math.round((verified / P.length) * 1000) / 10 : 0, postsThisWeek: posts.filter((p) => Date.now() - new Date(p.createdAt) < 7 * 864e5).length, engaged, engagedPct: P.length ? Math.round((engaged / P.length) * 1000) / 10 : 0 }, channelReach: { app: reach('app'), email: reach('email'), sms: reach('sms') }, perSchool, topPosts, recentAlerts };
 }
 
+export async function schoolsData() {
+  if (store.mode() === 'server') return apiGet('/api/schools');
+  const schools = S.db?.schools || [];
+  const groupSchool = new Map((S.db?.groups || []).map((g) => [g.id, g.schoolId]));
+  const schoolOf = (a) => a.schoolId ?? groupSchool.get(a.audience?.id) ?? null;
+  const allPosts = S.db?.posts || [];
+  const allAlerts = S.db?.alerts || [];
+  const allStudents = S.db?.students || [];
+  const weekAgo = Date.now() - 7 * 864e5;
+  const engagedIds = new Set();
+  allPosts.forEach((p) => { Object.values(p.reactions || {}).flat().forEach((id) => engagedIds.add(id)); (p.comments || []).forEach((c) => engagedIds.add(c.authorId)); });
+  return schools.map((s) => {
+    const schoolParents = (S.db?.users || []).filter((u) => u.role === 'parent' && u.schoolId === s.id);
+    const families = schoolParents.length;
+    const verified = schoolParents.filter((u) => u.verified).length;
+    const engaged = schoolParents.filter((u) => engagedIds.has(u.id)).length;
+    const posts = allPosts.filter((p) => schoolOf(p) === s.id);
+    const alerts = allAlerts.filter((a) => schoolOf(a) === s.id);
+    return {
+      schoolId: s.id, name: s.name, short: s.short, level: s.level, color: s.color,
+      families, students: allStudents.filter((x) => x.schoolId === s.id).length,
+      posts: posts.length, postsThisWeek: posts.filter((p) => new Date(p.createdAt).getTime() > weekAgo).length,
+      alerts: alerts.length,
+      verified, verifiedPct: families ? Math.round((verified / families) * 1000) / 10 : 0,
+      engaged, engagedPct: families ? Math.round((engaged / families) * 1000) / 10 : 0,
+    };
+  }).sort((a, b) => b.families - a.families);
+}
+
 export async function refreshUnread() {
   try {
     if (store.mode() === 'server') { const r = await apiGet(`/api/unread?${qs({ me: S.me })}`); S.unread = r.count || 0; }
