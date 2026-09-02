@@ -8,7 +8,7 @@ import { renderMessages } from './messages.js';
 import { renderSignups, renderForms, renderCalendar } from './engage.js';
 import { renderPayments, renderAttendance, renderDocuments } from './records.js';
 import { renderDirectory, renderSettings } from './directory.js';
-import { renderDashboard, renderModeration, renderAlerts, openSendAlert, renderAutomations, renderReports, renderIntegrations } from './admin.js';
+import { renderDashboard, renderModeration, renderAlerts, renderAutomations, renderReports, renderIntegrations } from './admin.js';
 import { renderConfig } from './config.js';
 
 const VIEWS = {
@@ -201,13 +201,14 @@ function alertBanner() {
     el('button', { class: 'ab-x', html: icon('x', 18), onclick: () => { alertDismissed = a.id; render(); } }));
 }
 
-// header compose button (teacher/admin) shown on Posts/Home + Alerts
+// header compose button (teacher/admin) shown on Posts/Home
+// (Alerts has its own "Send Alert" button in its page head — renderAlerts() in admin.js —
+// so it's deliberately not duplicated here.)
 function shellActions() {
   const me = actor();
   if (me.role === 'parent' || C.isViewer()) return null;   // viewers are read-only — no compose/send affordances
   const acts = [];
   if (S.view === 'home') acts.push(el('button', { class: 'fab', onclick: () => openCompose(), html: icon('plus', 18) + `<span>${C.L('New Post', 'Nueva publicación')}</span>` }));
-  if (me.role === 'admin' && S.view === 'alerts') acts.push(el('button', { class: 'fab danger', onclick: () => openSendAlert(), html: icon('alert', 17) + `<span>${C.L('Send Alert', 'Enviar alerta')}</span>` }));
   return acts.length ? el('div', { class: 'shell-actions' }, ...acts) : null;
 }
 
