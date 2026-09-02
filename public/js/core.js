@@ -149,6 +149,15 @@ export async function alertList({ me = S.me, limit = 20 } = {}) {
   return { items };
 }
 
+export async function noticeList({ me = S.me, limit = 20 } = {}) {
+  if (store.mode() === 'server') return apiGet(`/api/notices?${qs({ me, limit })}`);
+  const u = actor();
+  const items = (S.db?.autoNotices || []).filter((n) => u.role === 'admin' || inAudience(u.id, n.audience))
+    .sort((a, b) => a.createdAt < b.createdAt ? 1 : -1).slice(0, limit)
+    .map((n) => ({ ...n, author: slimUser(userById(n.authorId)) }));
+  return { items };
+}
+
 export async function directoryPage({ q = '', role = '', schoolId = '', limit = 25, offset = 0 } = {}) {
   if (store.mode() === 'server') return apiGet(`/api/directory?${qs({ q, role, school: schoolId, limit, offset })}`);
   let list = (S.db?.users || []).filter((u) => (!role || u.role === role) && (!schoolId || u.schoolId === schoolId) && (!q || `${u.name} ${u.email || ''}`.toLowerCase().includes(q.toLowerCase())));
@@ -209,6 +218,18 @@ export async function refreshUnread() {
     else S.unread = myConversations().reduce((n, c) => n + c.messages.filter((m) => m.senderId !== S.me && !m.read).length, 0);
   } catch { /* keep last value */ }
 }
+
+// Alert-sending authority. Network admins/school leaders (role: admin) hold it by
+// role; other staff — including teachers — only via an explicit alertPermission grant.
+// 'urgent' is a superset of 'alerts' (can send both regular + Urgent Alerts).
+export const canSendAlerts = (u) => u?.role === 'admin' || u?.alertPermission === 'alerts' || u?.alertPermission === 'urgent';
+export const canSendUrgent = (u) => u?.role === 'admin' || u?.alertPermission === 'urgent';
+
+// Auto Notices are a separate permission from Alerts (per the doc's "manage auto
+// notices" grant) — deliberately broader by default: any teacher can send routine,
+// personalized class notices (attendance, athletics, etc.) without an explicit grant,
+// unlike the urgent-broadcast Alerts path above.
+export const canSendNotices = (u) => u?.role === 'admin' || u?.role === 'teacher';
 
 // audiences the current actor may post/create to (groups they lead, their school, or all if admin)
 export function audiencesFor(me) {

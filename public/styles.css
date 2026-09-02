@@ -443,6 +443,15 @@ button.cal-cell:hover { background: var(--bg); }
 .ac-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ac-title strong { font-size: 15px; }
 .ac-body { margin-top: 9px; color: #3b4654; }
+
+/* Auto Notices — visually distinct from Alerts (purple vs. amber/red) since it's a
+   different notification type: personalized-per-recipient, not a broadcast. */
+.notice-card { border-left: 4px solid var(--purple); cursor: pointer; }
+.notice-card .ac-icon { color: var(--purple); }
+.notice-preview-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; max-height: 260px; overflow-y: auto; }
+.notice-preview-row { padding: 8px 10px; background: var(--bg); border-radius: var(--radius-sm); }
+.notice-preview-row strong { display: block; font-size: 13px; }
+.notice-preview-row p { margin-top: 2px; }
 .sev-tag { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .05em; padding: 3px 10px; border-radius: 6px; margin-bottom: 10px; }
 .sev-tag.sev-urgent { background: var(--amber-soft); color: var(--amber); } .sev-tag.sev-emergency { background: var(--red-soft); color: var(--red); } .sev-tag.sev-info { background: var(--primary-soft); color: var(--primary); }
 .alert-detail-body { margin-bottom: 14px; white-space: pre-wrap; }

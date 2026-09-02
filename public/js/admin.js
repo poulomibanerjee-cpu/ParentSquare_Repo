@@ -139,8 +139,8 @@ function openAlertDetail(a) {
 
 export function renderAlerts(main) {
   const me = actor();
-  main.appendChild(pageHead(L('Alerts', 'Alertas'), me.role === 'admin' ? L('Urgent mass notifications & delivery reports', 'Notificaciones urgentes e informes de entrega') : L('Important notifications from your school', 'Notificaciones importantes de tu escuela'),
-    me.role === 'admin' ? btn(L('Send Alert', 'Enviar alerta'), { kind: 'danger', iconName: 'alert', onclick: () => openSendAlert() }) : null));
+  main.appendChild(pageHead(L('Alerts', 'Alertas'), C.canSendAlerts(me) ? L('Urgent mass notifications & delivery reports', 'Notificaciones urgentes e informes de entrega') : L('Important notifications from your school', 'Notificaciones importantes de tu escuela'),
+    C.canSendAlerts(me) ? btn(L('Send Alert', 'Enviar alerta'), { kind: 'danger', iconName: 'alert', onclick: () => openSendAlert() }) : null));
   const slot = el('div', { class: 'stack' }, el('p', { class: 'muted pad' }, L('Loading…', 'Cargando…')));
   main.appendChild(slot);
 
@@ -151,32 +151,37 @@ export function renderAlerts(main) {
     alerts.forEach((a) => {
       const body = tx(a, 'body');
       const d = a.delivery || {};
-      slot.appendChild(el('article', { class: `card alert-card sev-${a.severity}`, onclick: me.role === 'admin' ? () => openAlertDetail(a) : null },
+      const canSeeReport = me.role === 'admin' || a.authorId === me.id;   // sender sees their own report too
+      slot.appendChild(el('article', { class: `card alert-card sev-${a.severity}`, onclick: canSeeReport ? () => openAlertDetail(a) : null },
         el('div', { class: 'ac-head' },
           el('span', { class: 'ac-icon', html: icon('alert', 20) }),
           el('div', {}, el('div', { class: 'ac-title' }, el('strong', {}, a.title), badge(a.severity, a.severity === 'info' ? 'cat' : 'warn'), a.smartAlert ? badge('⚡ Smart', 'cat') : null),
             el('div', { class: 'muted tiny' }, `${a.author?.name || ''} · ${timeAgo(a.createdAt)} · → ${a.audience?.label || ''}`)),
           channelChips(a.channels)),
         el('p', { class: 'ac-body' }, body.text),
-        me.role === 'admin' ? el('div', { class: 'am-stats muted tiny', style: { marginTop: '6px' } }, `${d.recipients || 0} ${L('sent', 'enviado')} · ${pct(d.opened, d.recipients)}% ${L('opened', 'abierto')} · ${pct(d.confirmed, d.recipients)}% ${L('confirmed', 'confirmado')} · ${L('tap for report', 'toca para ver informe')}`) : null));
+        canSeeReport ? el('div', { class: 'am-stats muted tiny', style: { marginTop: '6px' } }, `${d.recipients || 0} ${L('sent', 'enviado')} · ${pct(d.opened, d.recipients)}% ${L('opened', 'abierto')} · ${pct(d.confirmed, d.recipients)}% ${L('confirmed', 'confirmado')} · ${L('tap for report', 'toca para ver informe')}`) : null));
     });
   })().catch((e) => { C.clear(slot); slot.appendChild(el('div', { class: 'error' }, 'Alerts error: ' + (e && e.message))); });
 }
 
 export function openSendAlert() {
   const me = actor();
-  const groups = S.db.groups.filter((g) => me.role === 'admin' || g.leadIds.includes(me.id)).map((g) => ({ type: g.type, id: g.id, label: g.name, schoolId: g.schoolId }));
-  const smarts = smartLists().map((s) => ({ type: 'smart', id: s.id, label: s.label, icon: s.icon, count: s.count }));
+  const urgentOk = C.canSendUrgent(me);
+  // school-scoped for non-admins (their own led groups + their school) — same rule as post/form composition
+  const groups = audiencesFor(me);
+  const smarts = me.role === 'admin' ? smartLists().map((s) => ({ type: 'smart', id: s.id, label: s.label, icon: s.icon, count: s.count })) : [];
   const auds = [...groups, ...smarts];
-  let f = { audience: groups.find((a) => a.type === 'school') || groups[0] || auds[0], title: '', body: '', severity: 'urgent', channels: ['sms', 'app', 'email'], smartAlert: true, scheduledFor: '' };
+  let f = { audience: groups.find((a) => a.type === 'school') || groups[0] || auds[0], title: '', body: '', severity: urgentOk ? 'urgent' : 'info', channels: ['sms', 'app', 'email'], smartAlert: true, scheduledFor: '' };
 
   const countLabel = el('div', { class: 'aud-count muted tiny' });
   const updCount = () => { countLabel.textContent = `→ ${audienceCount(f.audience).toLocaleString()} ${L('families match', 'familias coinciden')}`; };
   const audSel = el('select', { class: 'inp', onchange: (e) => { f.audience = auds[e.target.selectedIndex]; updCount(); } },
     el('optgroup', { label: L('Groups', 'Grupos') }, ...groups.map((a) => el('option', { selected: a === f.audience }, a.label))),
-    el('optgroup', { label: L('Smart Lists (rule-based)', 'Listas inteligentes (por reglas)') }, ...smarts.map((a) => el('option', {}, `${a.icon} ${a.label} (${a.count})`))));
+    smarts.length ? el('optgroup', { label: L('Smart Lists (rule-based)', 'Listas inteligentes (por reglas)') }, ...smarts.map((a) => el('option', {}, `${a.icon} ${a.label} (${a.count})`))) : null);
 
-  const sevSeg = el('div', { class: 'seg' }, ...[['info', L('Info', 'Información')], ['urgent', L('Urgent', 'Urgente')], ['emergency', L('Emergency', 'Emergencia')]].map(([v, lbl]) => {
+  // Urgent/Emergency require the urgent grant — a teacher with only 'alerts' gets Info (the "regular Alert" path).
+  const sevOptions = urgentOk ? [['info', L('Info', 'Información')], ['urgent', L('Urgent', 'Urgente')], ['emergency', L('Emergency', 'Emergencia')]] : [['info', L('Info', 'Información')]];
+  const sevSeg = el('div', { class: 'seg' }, ...sevOptions.map(([v, lbl]) => {
     const b = el('button', { class: 'seg-opt sev-opt sev-' + v + (f.severity === v ? ' on' : ''), onclick: () => { f.severity = v; sevSeg.querySelectorAll('.seg-opt').forEach((x) => x.classList.remove('on')); b.classList.add('on'); } }, lbl);
     return b;
   }));

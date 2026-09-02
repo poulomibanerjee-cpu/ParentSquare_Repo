@@ -73,6 +73,7 @@ function makeUser(role, school, opts = {}) {
     address: opts.address || `${100 + Math.floor(rng() * 800)} ${pick(STREETS)}, New York, NY 100${26 + Math.floor(rng() * 9)}`,
     verified: opts.verified ?? chance(0.84),
     reachedBy: opts.reachedBy || (chance(0.62) ? ['app', 'email', 'sms'] : chance(0.5) ? ['email', 'sms'] : ['email']),
+    alertPermission: opts.alertPermission || 'none',
   };
 }
 
@@ -89,7 +90,7 @@ function link(parent, kid) { (guardianMap[kid.id] ||= []).push(parent.id); (stud
 // --- Admin / staff ---
 const dana = makeUser('admin', PRIMARY, { id: 'usr_dana', firstName: 'Dana', lastName: 'Okafor', name: 'Dana Okafor', title: 'Director of Family Engagement', color: '#6e40c9', email: 'dana.okafor@successacademies.org', language: 'en', verified: true, reachedBy: ['app', 'email', 'sms'] });
 const alana = makeUser('admin', PRIMARY, { id: 'usr_alana', firstName: 'Alana', lastName: 'Reyes', name: 'Dr. Alana Reyes', title: 'Principal, Harlem 1', color: '#E0521C', verified: true, reachedBy: ['app', 'email', 'sms'] });
-const marcus = makeUser('teacher', PRIMARY, { id: 'usr_marcus', firstName: 'Marcus', lastName: 'Bell', name: 'Marcus Bell', title: 'Lead Teacher — 3rd Grade (Cornell)', color: '#16335B', verified: true, reachedBy: ['app', 'email', 'sms'] });
+const marcus = makeUser('teacher', PRIMARY, { id: 'usr_marcus', firstName: 'Marcus', lastName: 'Bell', name: 'Marcus Bell', title: 'Lead Teacher — 3rd Grade (Cornell)', color: '#16335B', verified: true, reachedBy: ['app', 'email', 'sms'], alertPermission: 'alerts' });
 const lena = makeUser('teacher', PRIMARY, { id: 'usr_lena', firstName: 'Lena', lastName: 'Park', name: 'Lena Park', title: 'Art Teacher', color: '#bf3989', verified: true });
 const coach = makeUser('teacher', PRIMARY, { id: 'usr_coach', firstName: 'Ray', lastName: 'Santos', name: 'Coach Ray Santos', title: 'PE Teacher & Field Day Lead', color: '#117A65', verified: true });
 const chessT = makeUser('teacher', PRIMARY, { id: 'usr_chess', firstName: 'Nadia', lastName: 'Petrov', name: 'Nadia Petrov', title: 'Chess Program Director', color: '#B7791F', verified: true });
@@ -606,7 +607,7 @@ const db = {
   district, schools,
   users, students, groups,
   guardianMap, studentMap,
-  posts, conversations, signups, forms, events, alerts,
+  posts, conversations, signups, forms, events, alerts, autoNotices: [],
   attendanceRules, attendanceEvents, fees, documents, automations, integrations, moderation, prefs,
   personas: [
     { userId: jarrod.id, label: 'Jarrod Wolf', sub: 'Head, Enterprise AI', role: 'admin' },

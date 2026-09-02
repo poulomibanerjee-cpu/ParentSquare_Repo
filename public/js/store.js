@@ -164,6 +164,18 @@ const OPS = {
     if (['yes', 'no', 'maybe'].includes(status)) e.rsvps[status].push(userId);
   },
 
+  sendAutoNotice(db, { authorId, audience, noticeType, title, body, channels, recipients }) {
+    const grp = (db.groups || []).find((g) => g.id === audience?.id);
+    const n = recipients != null ? recipients : (audience?.type === 'network' || !grp) ? db.users.filter((u) => u.role === 'parent').length : grp.memberIds.length;
+    db.autoNotices ||= [];
+    db.autoNotices.unshift({
+      id: rid('notice'), authorId, audience, noticeType: noticeType || 'general',
+      title: title || '(untitled notice)', body: body || '', createdAt: nowISO(),
+      channels: channels || ['app', 'email'],
+      delivery: { recipients: n, opened: Math.floor(n * (0.5 + Math.random() * 0.3)) },
+    });
+  },
+
   sendAlert(db, { authorId, audience, title, body, severity, channels, smartAlert, recipients, scholarIds, scheduledFor }) {
     const grp = (db.groups || []).find((g) => g.id === audience?.id);
     const n = recipients != null ? recipients : (audience?.type === 'network' || !grp) ? db.users.filter((u) => u.role === 'parent').length : grp.memberIds.length;

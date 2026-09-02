@@ -145,6 +145,23 @@ const OPS = {
     });
   },
 
+  // Auto Notice — the OPPOSITE shape from an alert: one template, but each recipient
+  // reads their OWN merged body (resolved from their own scholar's data via applyMerge
+  // on the client — same mechanism Posts already use for {{scholar_first}}). Not a
+  // broadcast: storing one shared body + audience is correct here because the merge
+  // happens per-viewer at render time, same as a Post.
+  sendAutoNotice(db, { authorId, audience, noticeType, title, body, channels, recipients }) {
+    const grp = (db.groups || []).find((g) => g.id === audience?.id);
+    const n = recipients != null ? recipients : (audience?.type === 'network' || !grp) ? db.users.filter((u) => u.role === 'parent').length : grp.memberIds.length;
+    db.autoNotices ||= [];
+    db.autoNotices.unshift({
+      id: rid('notice'), authorId, audience, noticeType: noticeType || 'general',
+      title: title || '(untitled notice)', body: body || '', createdAt: nowISO(),
+      channels: channels || ['app', 'email'],
+      delivery: { recipients: n, opened: Math.floor(n * (0.5 + Math.random() * 0.3)) },
+    });
+  },
+
   toggleRule(db, { ruleId }) { const r = find(db.attendanceRules, ruleId); if (r) r.active = !r.active; },
   payFee(db, { feeId }) { const f = find(db.fees, feeId); if (f && f.status !== 'paid') { f.status = 'paid'; f.paidAt = nowISO(); } },
   ackDocument(db, { docId, userId }) { const d = find(db.documents || [], docId); if (d && !(d.acknowledgedBy ||= []).includes(userId)) d.acknowledgedBy.push(userId); },
@@ -205,7 +222,7 @@ const OP_COLLECTION = {
   claimSlot: 'signups', unclaimSlot: 'signups', createSignup: 'signups',
   submitForm: 'forms', createForm: 'forms',
   rsvp: 'events', addEvent: 'events', eventCheckIn: 'events',
-  sendAlert: 'alerts', toggleRule: 'attendanceRules', payFee: 'fees',
+  sendAlert: 'alerts', sendAutoNotice: 'autoNotices', toggleRule: 'attendanceRules', payFee: 'fees',
   ackDocument: 'documents', moderate: 'moderation', savePrefs: '__prefs__',
   toggleAutomation: 'automations', syncIntegration: 'integrations',
   saveSmartList: 'smartLists', deleteSmartList: 'smartLists',

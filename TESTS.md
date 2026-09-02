@@ -1,6 +1,6 @@
 # Family Connect — feature & flow inventory + test suites
 
-Two automated suites cover the app. **170 checks, all passing.**
+Two automated suites cover the app. **177 checks, all passing.**
 
 ## How to run
 
@@ -8,10 +8,10 @@ Two automated suites cover the app. **170 checks, all passing.**
 npm test          # 32 server-side checks — every mutation op via the HTTP API, incl. the persona roster
 ```
 
-In-app end-to-end (138 checks) — open the app, then in the browser console:
+In-app end-to-end (145 checks) — open the app, then in the browser console:
 ```js
 (await import('./js/e2e-test.js')).runAll()
-// → { total: 138, passed: 138, failed: 0, failures: [] }
+// → { total: 145, passed: 145, failed: 0, failures: [] }
 ```
 The e2e suite drives the **real app through the same `act()` pipeline the UI uses**, creates data, and asserts on both state and rendered DOM. It resets the on-device store before and after, so it's safe to run anytime.
 
@@ -58,6 +58,19 @@ The e2e suite drives the **real app through the same `act()` pipeline the UI use
 ### Alerts
 - **Smart-list** targeting with live recipient counts; **scheduled** alert (0 opened until sent)
 - Smart-Alert delivery funnel; real device notification on send
+- **Permissioned sending**: network admins/school leaders by role; teachers only via an
+  explicit `alertPermission` grant (Marcus has `'alerts'`); Urgent Alerts need the separate
+  `'urgent'` tier. A permissioned teacher's audience picker is scoped to their own led
+  groups + school (reusing `audiencesFor`) — no cross-school or network targeting, and
+  Smart Lists (admin-only) don't appear for them.
+
+### Auto Notices
+- A **second, distinct notification type** from Alerts: one shared template, but each
+  recipient's view is **personalized per-scholar** via the same `applyMerge` mechanism
+  Posts already use for `{{scholar_first}}` — verified two recipients of the same sent
+  notice resolve to different merged bodies.
+- Any teacher or admin can send (a broader, separate permission from Alerts —
+  `canSendNotices`); compose shows a live per-recipient merge preview before sending.
 
 ### Admin / leadership
 - **Automations** toggle (rule-based outreach)

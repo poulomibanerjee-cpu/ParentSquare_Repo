@@ -43,6 +43,29 @@ async function personaChecks() {
   ok('top bar shows Poulomi Banerjee\'s name', document.body.textContent.includes('Poulomi Banerjee'));
 }
 
+// ---- Alerts vs. Auto Notices: permissioned sending + per-recipient personalization ---
+async function notificationChecks() {
+  const marcus = C.userById('usr_marcus');
+  const lena = C.userById('usr_lena');
+  ok('teacher with an explicit grant can send Alerts', C.canSendAlerts(marcus));
+  ok('teacher without a grant cannot send Alerts', !C.canSendAlerts(lena));
+  ok('only the urgent grant can send Urgent Alerts', !C.canSendUrgent(marcus) && C.canSendUrgent(C.userById('usr_dana')));
+  ok('any teacher can send Auto Notices (separate, broader permission)', C.canSendNotices(marcus) && C.canSendNotices(lena));
+
+  // Marcus sends an Alert scoped to his own class — school/network targeting isn't his to pick.
+  await C.act('sendAlert', { authorId: marcus.id, audience: { type: 'class', id: 'grp_cornell', label: 'Cornell', schoolId: 'sch_hw' }, title: 'E2E teacher alert', body: 'Forms due Friday', severity: 'info', channels: ['app'] });
+  const teacherAlert = db().alerts.find((a) => a.title === 'E2E teacher alert');
+  ok('teacher-sent alert is recorded with the right author + scope', !!teacherAlert && teacherAlert.authorId === marcus.id && teacherAlert.audience.id === 'grp_cornell');
+
+  // Auto Notice: one template, personalized per recipient — the structural difference from an Alert.
+  const r = await C.act('sendAutoNotice', { authorId: marcus.id, audience: { type: 'class', id: 'grp_cornell', label: 'Cornell', schoolId: 'sch_hw' }, noticeType: 'athletics', title: 'E2E notice', body: 'Hi {{scholar_first}}, meet Friday!', channels: ['app'] });
+  const notice = db().autoNotices.find((n) => n.title === 'E2E notice');
+  ok('sendAutoNotice creates one shared-template record', !!notice && notice.body.includes('{{scholar_first}}'));
+  const recipients = C.resolveRecipients(notice.audience);
+  const mergedBodies = new Set(recipients.map((rec) => C.applyMerge(notice.body, rec)));
+  ok('Auto Notice merges a different body per recipient', recipients.length > 1 && mergedBodies.size > 1, `${mergedBodies.size} distinct bodies for ${recipients.length} recipients`);
+}
+
 // ---- data-flow tests: exercise every mutation through act() -----------------
 async function dataFlows() {
   // posts: react / comment / pin / create (+scheduled)
@@ -202,6 +225,8 @@ async function renderSweep() {
 export async function runAll() {
   results.length = 0;
   try { await personaChecks(); } catch (e) { ok('personaChecks crashed', false, String(e && e.stack || e)); }
+  await C.resetDb(); await tick();
+  try { await notificationChecks(); } catch (e) { ok('notificationChecks crashed', false, String(e && e.stack || e)); }
   await C.resetDb(); await tick();
   try { await dataFlows(); } catch (e) { ok('dataFlows crashed', false, String(e && e.stack || e)); }
   try { await renderSweep(); } catch (e) { ok('renderSweep crashed', false, String(e && e.stack || e)); }

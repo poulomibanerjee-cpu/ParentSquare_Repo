@@ -10,6 +10,7 @@ import { renderPayments, renderAttendance, renderDocuments } from './records.js'
 import { renderDirectory, renderSettings } from './directory.js';
 import { renderDashboard, renderSchools, renderModeration, renderAlerts, renderAutomations, renderReports, renderIntegrations } from './admin.js';
 import { renderConfig } from './config.js';
+import { renderAutoNotices } from './notices.js';
 
 const VIEWS = {
   home: renderFeed, messages: renderMessages, signups: renderSignups, forms: renderForms,
@@ -17,7 +18,7 @@ const VIEWS = {
   documents: renderDocuments, directory: renderDirectory, settings: renderSettings,
   dashboard: renderDashboard, schools: renderSchools, moderation: renderModeration, alerts: renderAlerts,
   automations: renderAutomations, reports: renderReports, integrations: renderIntegrations,
-  config: renderConfig,
+  config: renderConfig, notices: renderAutoNotices,
 };
 
 // nav config per role: [view, labelEN, labelES, iconName]
@@ -32,6 +33,7 @@ const NAV = {
   ],
   teacher: [
     ['home', 'Home', 'Inicio', 'home'], ['messages', 'Messages', 'Mensajes', 'message'],
+    ['alerts', 'Alerts', 'Alertas', 'bell'], ['notices', 'Auto Notices', 'Avisos automáticos', 'clip'],
     ['signups', 'Sign-Ups', 'Inscripciones', 'hand'], ['forms', 'Forms', 'Formularios', 'doc'],
     ['documents', 'Documents', 'Documentos', 'folder'],
     ['calendar', 'Calendar', 'Calendario', 'calendar'], ['directory', 'Directory', 'Directorio', 'people'],
@@ -41,6 +43,7 @@ const NAV = {
     ['dashboard', 'Dashboard', 'Panel', 'chart'], ['schools', 'Schools', 'Escuelas', 'pin'],
     ['reports', 'Reports', 'Informes', 'report'],
     ['home', 'Posts', 'Publicaciones', 'home'], ['alerts', 'Alerts', 'Alertas', 'bell'],
+    ['notices', 'Auto Notices', 'Avisos automáticos', 'clip'],
     ['automations', 'Automations', 'Automatizaciones', 'bolt'], ['moderation', 'Moderation', 'Moderación', 'shield'],
     ['messages', 'Messages', 'Mensajes', 'message'], ['signups', 'Sign-Ups', 'Inscripciones', 'hand'],
     ['forms', 'Forms', 'Formularios', 'doc'], ['documents', 'Documents', 'Documentos', 'folder'],
@@ -138,9 +141,16 @@ function navButton([view, en, es, ic]) {
     b ? el('span', { class: 'ni-badge' }, String(b)) : null);
 }
 
+// hide entry points staff don't have permission for (teachers see "Alerts" only with an explicit grant)
+function visibleNav(me) {
+  const all = NAV[me.role] || NAV.parent;
+  if (me.role === 'teacher' && !C.canSendAlerts(me)) return all.filter(([view]) => view !== 'alerts');
+  return all;
+}
+
 function sidebar() {
   const me = actor();
-  const all = NAV[me.role] || NAV.parent;
+  const all = visibleNav(me);
 
   // desktop: full vertical nav
   if (!isMobile()) {
@@ -170,7 +180,7 @@ function sidebar() {
 function moreSheet() {
   if (openMenu !== 'more' || !isMobile()) return null;
   const me = actor();
-  const all = NAV[me.role] || NAV.parent;
+  const all = visibleNav(me);
   const primaryViews = MOBILE_PRIMARY[me.role] || MOBILE_PRIMARY.parent;
   const rest = all.filter((it) => !primaryViews.includes(it[0]));
   const sheet = el('div', { class: 'more-sheet' },

@@ -30,7 +30,7 @@ Click the avatar (top-right) to switch between four people sharing one dataset:
 | Persona | Role | What you'll see |
 |---|---|---|
 | **Dana Okafor** | 🛡️ Director of Family Engagement | Analytics dashboard, mass alerts + delivery reports, AI moderation, document registry |
-| **Marcus Bell** | 🍎 Lead Teacher (Cornell, 3rd) | Class posts, two-way messaging, sign-ups, forms |
+| **Marcus Bell** | 🍎 Lead Teacher (Cornell, 3rd) | Class posts, two-way messaging, sign-ups, forms, **Alerts** (explicit grant, scoped to Cornell/Harlem 1), **Auto Notices** |
 | **Priya Sharma** | 👪 Parent (English) | Feed, RSVPs, e-sign permission slips, pay fees, report cards |
 | **Carmen Ruiz** | 👪 Parent (**Español**) | The whole app **auto-translated to Spanish**, incl. messages & report card |
 
@@ -46,7 +46,8 @@ Toggle **EN / ES** (top bar) any time to watch the entire UI *and* content trans
 - **✍️ Forms & Permission Slips** — fillable fields with **electronic signature**, due dates, per-scholar status, staff-side response viewer.
 - **📁 Documents** — secure per-scholar delivery of **report cards, NWEA MAP score reports, and placement letters**, with read tracking and **acknowledge-receipt**. *(Closest match to ParentSquare's document delivery.)*
 - **📅 Calendar & Events** — upcoming events with **RSVP** and a mini month view.
-- **🔔 Alerts** — urgent mass notifications with **Smart Alert** (text-first, voice failover) and full **delivery funnels** (sent → delivered → opened → confirmed).
+- **🔔 Alerts** — urgent mass notifications with **Smart Alert** (text-first, voice failover) and full **delivery funnels** (sent → delivered → opened → confirmed). Admins/school leaders can send by role; teachers only with an explicit grant, scoped to their own school/classes.
+- **📨 Auto Notices** — the *other* notification type: one shared template, but each family sees their **own scholar merged in** (e.g. "Dear {{scholar_first}}..."), not a broadcast. Any teacher or admin can send one.
 - **🕐 Attendance** — threshold-based **auto-notification rules** (truancy, tardies…), per-scholar history for families.
 - **💳 Payments** — field-trip / uniform / chess fees, mock Stripe checkout, pay-all, history; collection totals for admins.
 - **👥 Directory** — groups/classes/teams/bus routes and a searchable contact directory.

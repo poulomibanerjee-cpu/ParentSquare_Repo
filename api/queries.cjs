@@ -217,6 +217,27 @@ module.exports = (sqlite) => {
       },
 
       // ------------------------------------------------------------------
+      // GET /api/notices?me&limit — Auto Notices visible to `me`, same audience-
+      // scoping rule as /api/alerts (canSee). Personalization is NOT resolved here —
+      // each viewer merges the template client-side via applyMerge, same as posts.
+      // ------------------------------------------------------------------
+      'GET /api/notices': ({ params }) => {
+        const meId = params.get('me') || '';
+        const limit = clamp(num(params.get('limit'), 20), 1, 100);
+        const me = viewer(meId);
+        if (!me) throw new Error(`unknown user: ${meId}`);
+
+        const visible = sqlite.prepare('SELECT doc FROM autoNotices').all()
+          .map((r) => JSON.parse(r.doc))
+          .filter((n) => canSee(n, me))
+          .sort((a, b) => a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
+        const page = visible.slice(0, limit);
+        const authors = fetchUsers(sqlite, page.map((n) => n.authorId));
+        const items = page.map((n) => ({ ...n, author: authors.get(n.authorId) || null }));
+        return { items };
+      },
+
+      // ------------------------------------------------------------------
       // GET /api/dashboard — SQL AGGREGATES ONLY. No rows pulled into JS to be
       // reduced; this must stay a few ms at 100k. Counts come straight from
       // indexed columns (role, school_id) via COUNT/GROUP BY.

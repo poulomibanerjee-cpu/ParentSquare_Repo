@@ -12,7 +12,7 @@ const { DatabaseSync } = require('node:sqlite');
 // every array collection in the seed → its own document table
 const ARRAY_COLLECTIONS = [
   'schools', 'users', 'students', 'groups', 'posts', 'conversations', 'signups',
-  'forms', 'events', 'alerts', 'attendanceRules', 'attendanceEvents', 'fees',
+  'forms', 'events', 'alerts', 'autoNotices', 'attendanceRules', 'attendanceEvents', 'fees',
   'documents', 'automations', 'integrations', 'moderation', 'personas', 'smartLists',
 ];
 // singletons / maps → key/value table
