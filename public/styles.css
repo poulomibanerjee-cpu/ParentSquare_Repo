@@ -1,15 +1,20 @@
 /* ============================================================================
  * Success Academy — Family Connect : styles
  * ==========================================================================*/
+@font-face { font-family: 'Akkurat'; src: url('/fonts/AkkuratStd-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Akkurat'; src: url('/fonts/AkkuratStd-Bold.otf') format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Akkurat'; src: url('/fonts/AkkuratLL-Black.otf') format('opentype'); font-weight: 900; font-style: normal; font-display: swap; }
+
 :root {
-  --bg: #f1f1ee; --card: #ffffff; --ink: #1b1f24; --muted: #6b7280; --line: #e6e4df;
-  --primary: #E0521C; --primary-d: #C2410C; --primary-soft: #FDEEE5;
-  --navy: #16335B;
+  --bg: #faf9f7; --card: #ffffff; --ink: #1b1f24; --muted: #6b7280; --line: #e6e4df;
+  --primary: #f7941e; --primary-d: #de851b; --primary-soft: #fef2e4;
+  --navy: #005e9e; --navy-pill: #0a4570;
+  --header-grad: linear-gradient(157deg, #0f6dad 0%, #024878 96%);
   --green: #1a7f37; --green-soft: #e6f4ea; --amber: #bc6a00; --amber-soft: #fdf1df;
   --red: #cf222e; --red-soft: #fde8e8; --purple: #6e40c9;
   --radius: 14px; --radius-sm: 10px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
   --shadow-lg: 0 10px 30px rgba(16,24,40,.16); --topbar-h: 62px; --side-w: 232px;
-  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sans: 'Akkurat', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -28,7 +33,7 @@ select, input, textarea { font-family: inherit; font-size: 14.5px; }
 
 /* ---------- layout ---------- */
 .layout { min-height: 100vh; }
-.topbar { position: sticky; top: 0; z-index: 40; height: calc(var(--topbar-h) + env(safe-area-inset-top)); background: #fff; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: env(safe-area-inset-top) max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
+.topbar { position: sticky; top: 0; z-index: 40; height: calc(var(--topbar-h) + env(safe-area-inset-top)); background: var(--header-grad); box-shadow: 0 6px 20px rgba(12,44,74,.15); display: flex; align-items: center; justify-content: space-between; padding: env(safe-area-inset-top) max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left)); }
 .body-row { display: flex; align-items: flex-start; max-width: 1400px; margin: 0 auto; }
 .sidebar { width: var(--side-w); flex: none; position: sticky; top: var(--topbar-h); height: calc(100vh - var(--topbar-h)); padding: 14px 12px; display: flex; flex-direction: column; }
 .side-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
@@ -37,16 +42,16 @@ select, input, textarea { font-family: inherit; font-size: 14.5px; }
 
 /* ---------- brand ---------- */
 .brand { display: flex; align-items: center; gap: 11px; cursor: pointer; }
-.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--primary), #F6883E); display: grid; place-items: center; }
-.brand-mark span { width: 15px; height: 15px; background: #fff; border-radius: 3px; }
-.brand-text strong { display: block; font-size: 16px; line-height: 1.1; }
-.brand-text span { font-size: 11.5px; color: var(--muted); }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; overflow: hidden; display: grid; place-items: center; }
+.brand-mark img { width: 100%; height: 100%; display: block; }
+.brand-text strong { display: block; font-size: 16px; line-height: 1.1; color: #fff; }
+.brand-text span { font-size: 11.5px; color: rgba(255,255,255,.7); }
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 
 /* ---------- language toggle ---------- */
-.lang-toggle { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: 9px; padding: 4px 6px 4px 8px; }
-.lang-toggle .bi { color: var(--muted); display: flex; }
-.lang-opt { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; color: var(--muted); }
+.lang-toggle { display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,.15); border-radius: 9px; padding: 4px 6px 4px 8px; }
+.lang-toggle .bi { color: rgba(255,255,255,.7); display: flex; }
+.lang-opt { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; color: rgba(255,255,255,.7); }
 .lang-opt.active { background: #fff; color: var(--primary); box-shadow: var(--shadow); }
 
 /* ---------- persona switcher ---------- */

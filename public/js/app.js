@@ -111,7 +111,7 @@ function topbar() {
 
   return el('header', { class: 'topbar', id: 'topbar' },
     el('div', { class: 'brand', onclick: () => navigate(me.role === 'admin' ? 'dashboard' : 'home') },
-      el('div', { class: 'brand-mark' }, el('span', {})),
+      el('div', { class: 'brand-mark' }, el('img', { src: '/images/logo/sa-monogram.svg', alt: 'Success Academy' })),
       el('div', { class: 'brand-text' }, el('strong', {}, d.shortName), el('span', {}, 'Family Connect'))),
     // iOS-style collapsing title: shows the current screen name once the large title scrolls under the bar
     el('div', { class: 'nav-title', id: 'nav-title' }),
