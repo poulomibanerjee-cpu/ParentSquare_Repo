@@ -11,3 +11,6 @@ node_modules/
 # OS / editor / logs
 .DS_Store
 *.log
+
+# local Claude Code tooling config (not part of the app)
+.claude/

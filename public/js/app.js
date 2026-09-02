@@ -300,8 +300,8 @@ function setupPullToRefresh() {
 (async function boot() {
   await loadState();
   setOnChange(render);
-  // default persona: Jarrod (network leadership) — opens on the admin dashboard for the demo
-  const start = S.db.personas.find((p) => p.userId === 'usr_jarrod') || S.db.personas[0];
+  // default persona: Poulomi (network leadership) — opens on the admin dashboard for the demo
+  const start = S.db.personas.find((p) => p.userId === 'usr_poulomi') || S.db.personas[0];
   S.me = start.userId; S.lang = userById(S.me).language || 'en';
   S.view = userById(S.me).role === 'admin' ? 'dashboard' : 'home';
   render();
