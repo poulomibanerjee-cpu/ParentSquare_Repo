@@ -115,6 +115,13 @@ const ok = (name, cond, detail = '') => { (cond ? pass++ : fail++); console.log(
   db = await state();
   ok('savePrefs persists', db.prefs['usr_priya'].digest === 'daily');
 
+  // 13b. persona roster — Poulomi Banerjee (network leadership, added alongside Jarrod/Abhinav)
+  const poulomiUser = find(db.users, 'usr_poulomi');
+  ok('persona roster includes Poulomi Banerjee', !!poulomiUser && poulomiUser.name === 'Poulomi Banerjee' && poulomiUser.title === 'Lead Mobile Engineer' && poulomiUser.role === 'admin');
+  ok('Poulomi Banerjee has an SA email', poulomiUser?.email === 'poulomi.banerjee@successacademies.org');
+  const poulomiPersona = db.personas.find((p) => p.userId === 'usr_poulomi');
+  ok('Poulomi Banerjee listed in the persona switcher', poulomiPersona?.label === 'Poulomi Banerjee' && poulomiPersona?.role === 'admin');
+
   // 14. staff creation flows
   const ev0 = (await state()).events.length;
   await mutate('addEvent', { authorId: 'usr_marcus', audience: { type: 'class', id: 'grp_cornell', label: 'Cornell', schoolId: 'sch_hw' }, title: 'Test Event', date: '2026-06-30T12:00:00', start: '9:00 AM', category: 'Meeting' });

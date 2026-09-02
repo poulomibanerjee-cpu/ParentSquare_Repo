@@ -9,6 +9,14 @@ import * as C from './core.js';
 const results = [];
 const ok = (name, cond, detail = '') => results.push({ name, pass: !!cond, detail: cond ? '' : detail });
 const tick = () => Promise.resolve(); // microtask — render() is synchronous; setTimeout is throttled in bg tabs
+// the home feed is the one view that renders a "Loading…" placeholder synchronously, then
+// fills in real posts once its scoped, paginated fetch (C.feedPage) resolves — a single
+// microtask tick() isn't enough to wait for that. Poll (bounded) instead of guessing a delay.
+const waitFor = async (cond, timeout = 500, interval = 20) => {
+  const start = Date.now();
+  while (!cond() && Date.now() - start < timeout) await new Promise((r) => setTimeout(r, interval));
+  return cond();
+};
 const db = () => C.S.db;
 const post = (id) => db().posts.find((p) => p.id === id);
 const su = (id) => db().signups.find((s) => s.id === id);
@@ -18,6 +26,22 @@ const fee = (id) => db().fees.find((f) => f.id === id);
 const doc = (id) => (db().documents || []).find((d) => d.id === id);
 const slotByLabel = (suId, m) => su(suId).slots.find((s) => m.test(s.label));
 const claims = (slot) => slot.claims || (slot.claimedBy || []).map((u) => ({ userId: u }));
+
+// ---- persona checks: Poulomi Banerjee (added as the default network-leadership persona) ---
+async function personaChecks() {
+  // must run before any setPersona() call in the suite — asserts the app's real boot() default,
+  // which the suite itself restores at the end of every run (see runAll), so this holds on repeat runs too.
+  ok('default persona on load is Poulomi Banerjee', C.S.me === 'usr_poulomi', `S.me was ${C.S.me}`);
+
+  const persona = db().personas.find((p) => p.userId === 'usr_poulomi');
+  ok('Poulomi Banerjee listed in the persona switcher', persona?.label === 'Poulomi Banerjee' && persona?.role === 'admin');
+
+  C.setPersona('usr_poulomi');
+  C.navigate('dashboard'); await tick();
+  const main = document.querySelector('.main');
+  ok('Poulomi Banerjee renders the admin dashboard', main && main.children.length > 0 && !document.querySelector('.main .error'));
+  ok('top bar shows Poulomi Banerjee\'s name', document.body.textContent.includes('Poulomi Banerjee'));
+}
 
 // ---- data-flow tests: exercise every mutation through act() -----------------
 async function dataFlows() {
@@ -158,15 +182,18 @@ async function renderSweep() {
   ok('created sign-up renders in list', [...document.querySelectorAll('.signup h3')].some((h) => /E2E Conf/.test(h.textContent)));
   C.navigate('forms'); await tick();
   ok('created form renders in list', [...document.querySelectorAll('.form h3')].some((h) => /E2E Form/.test(h.textContent)));
-  C.navigate('home'); await tick();
-  ok('created post renders in feed', [...document.querySelectorAll('.post-title')].some((h) => /E2E New Post/.test(h.textContent)));
+  C.navigate('home');
+  const postRendered = await waitFor(() => [...document.querySelectorAll('.post-title')].some((h) => /E2E New Post/.test(h.textContent)));
+  ok('created post renders in feed', postRendered);
   // child-specific filter narrows for multi-child parent
-  C.setPersona('usr_priya'); C.navigate('home'); await tick();
+  C.setPersona('usr_priya'); C.navigate('home');
+  await waitFor(() => document.querySelector('.post'));
   const allN = document.querySelectorAll('.post').length;
-  C.navigate('home', { feedChild: 'stu_rohan' }); await tick();
+  C.navigate('home', { feedChild: 'stu_rohan' });
+  await waitFor(() => document.querySelector('.post'));
   const rohanN = document.querySelectorAll('.post').length;
   ok('child filter narrows feed', rohanN <= allN);
-  // ES translation
+  // ES translation — nav labels render synchronously with the shell, no feed wait needed
   C.setPersona('usr_carmen'); C.setLang('es'); C.navigate('home'); await tick();
   ok('ES translation renders Spanish nav', [...document.querySelectorAll('.ni-label')].some((e) => /Inicio|Mensajes/.test(e.textContent)));
   C.setLang('en');
@@ -174,11 +201,12 @@ async function renderSweep() {
 
 export async function runAll() {
   results.length = 0;
+  try { await personaChecks(); } catch (e) { ok('personaChecks crashed', false, String(e && e.stack || e)); }
   await C.resetDb(); await tick();
   try { await dataFlows(); } catch (e) { ok('dataFlows crashed', false, String(e && e.stack || e)); }
   try { await renderSweep(); } catch (e) { ok('renderSweep crashed', false, String(e && e.stack || e)); }
   await C.resetDb(); await tick();
-  C.setPersona('usr_jarrod');
+  C.setPersona('usr_poulomi');
   const failed = results.filter((r) => !r.pass);
   return { total: results.length, passed: results.length - failed.length, failed: failed.length, failures: failed };
 }

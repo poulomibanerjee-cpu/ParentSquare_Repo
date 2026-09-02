@@ -1,19 +1,24 @@
 # Family Connect — feature & flow inventory + test suites
 
-Two automated suites cover the app. **148 checks, all passing.**
+Two automated suites cover the app. **170 checks, all passing.**
 
 ## How to run
 
 ```bash
-npm test          # 29 server-side checks — every mutation op via the HTTP API
+npm test          # 32 server-side checks — every mutation op via the HTTP API, incl. the persona roster
 ```
 
-In-app end-to-end (119 checks) — open the app, then in the browser console:
+In-app end-to-end (138 checks) — open the app, then in the browser console:
 ```js
 (await import('./js/e2e-test.js')).runAll()
-// → { total: 119, passed: 119, failed: 0, failures: [] }
+// → { total: 138, passed: 138, failed: 0, failures: [] }
 ```
 The e2e suite drives the **real app through the same `act()` pipeline the UI uses**, creates data, and asserts on both state and rendered DOM. It resets the on-device store before and after, so it's safe to run anytime.
+
+> The home feed renders a "Loading…" placeholder synchronously, then fills in real posts once
+> its scoped, paginated fetch (`C.feedPage`) resolves — by design, so the client never has to
+> load the whole posts table. The e2e suite's feed-dependent assertions poll (bounded, via a
+> small `waitFor` helper) rather than assume a single render tick, so they don't race that fetch.
 
 ---
 
@@ -65,3 +70,8 @@ The e2e suite drives the **real app through the same `act()` pipeline the UI use
 - **Render sweep**: every view renders without error for every persona (admin / teacher / parent)
 - Created items (event, sign-up, form, post) actually appear in their views
 - Full ES translation of UI + content
+
+### Persona roster
+- Poulomi Banerjee is present in `users` and the persona switcher (admin role, SA email)
+- She's the app's default persona on a fresh load
+- Switching to her renders the admin dashboard with her name in the top bar
