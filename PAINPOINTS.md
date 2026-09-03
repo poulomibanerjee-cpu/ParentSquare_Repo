@@ -1,6 +1,6 @@
 # ParentSquare pain points → how Family Connect fixes them
 
-A demo map for the *ParentSquare: Current Pain Points* doc (SA, Jun 2026). Switch to **Jarrod Wolf** (admin) to see the staff/leadership fixes; switch to **Priya Sharma** (parent, 2 kids) for the family fixes.
+A demo map for the *ParentSquare: Current Pain Points* doc (SA, Jun 2026). Switch to **Poulomi Banerjee** (admin, the default persona on load) to see the staff/leadership fixes; switch to **Priya Sharma** (parent, 2 kids) for the family fixes.
 
 | # | ParentSquare pain point | Family Connect fix | Where to look |
 |---|---|---|---|

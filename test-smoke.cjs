@@ -115,7 +115,7 @@ const ok = (name, cond, detail = '') => { (cond ? pass++ : fail++); console.log(
   db = await state();
   ok('savePrefs persists', db.prefs['usr_priya'].digest === 'daily');
 
-  // 13b. persona roster — Poulomi Banerjee (network leadership, added alongside Jarrod/Abhinav)
+  // 13b. persona roster — Poulomi Banerjee (network leadership, added alongside Abhinav)
   const poulomiUser = find(db.users, 'usr_poulomi');
   ok('persona roster includes Poulomi Banerjee', !!poulomiUser && poulomiUser.name === 'Poulomi Banerjee' && poulomiUser.title === 'Lead Mobile Engineer' && poulomiUser.role === 'admin');
   ok('Poulomi Banerjee has an SA email', poulomiUser?.email === 'poulomi.banerjee@successacademies.org');

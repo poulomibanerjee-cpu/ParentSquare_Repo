@@ -96,10 +96,9 @@ const coach = makeUser('teacher', PRIMARY, { id: 'usr_coach', firstName: 'Ray', 
 const chessT = makeUser('teacher', PRIMARY, { id: 'usr_chess', firstName: 'Nadia', lastName: 'Petrov', name: 'Nadia Petrov', title: 'Chess Program Director', color: '#B7791F', verified: true });
 const nurse = makeUser('teacher', PRIMARY, { id: 'usr_nurse', firstName: 'Dolores', lastName: 'Murphy', name: 'Nurse Murphy', title: 'School Nurse', color: '#B5179E', verified: true });
 // network leadership (the real people evaluating this pilot)
-const jarrod = makeUser('admin', PRIMARY, { id: 'usr_jarrod', firstName: 'Jarrod', lastName: 'Wolf', name: 'Jarrod Wolf', title: 'Head, Enterprise AI', email: 'jarrod.wolf@successacademies.org', color: '#1f6feb', verified: true, reachedBy: ['app', 'email', 'sms'] });
 const abhinav = makeUser('admin', PRIMARY, { id: 'usr_abhinav', firstName: 'Abhinav', lastName: 'Mathur', name: 'Abhinav Mathur', title: 'Executive, Enterprise Services', email: 'abhinav.mathur@successacademies.org', color: '#6e40c9', verified: true, reachedBy: ['app', 'email', 'sms'] });
 const poulomi = makeUser('admin', PRIMARY, { id: 'usr_poulomi', firstName: 'Poulomi', lastName: 'Banerjee', name: 'Poulomi Banerjee', title: 'Lead Mobile Engineer', email: 'poulomi.banerjee@successacademies.org', color: '#0d9488', verified: true, reachedBy: ['app', 'email', 'sms'] });
-users.push(dana, alana, marcus, lena, coach, chessT, nurse, jarrod, abhinav, poulomi);
+users.push(dana, alana, marcus, lena, coach, chessT, nurse, abhinav, poulomi);
 
 // --- Parents (demo) ---
 const priya = makeUser('parent', PRIMARY, { id: 'usr_priya', firstName: 'Priya', lastName: 'Sharma', name: 'Priya Sharma', color: '#0969da', language: 'en', email: 'priya.sharma@gmail.com', verified: true, reachedBy: ['app', 'email', 'sms'] });
@@ -337,9 +336,9 @@ const posts = [
 // ---------------------------------------------------------------------------
 const conversations = [
   {
-    id: 'conv_jarrod_abhinav', type: 'direct', participantIds: [jarrod.id, abhinav.id], subject: null,
+    id: 'conv_poulomi_abhinav', type: 'direct', participantIds: [poulomi.id, abhinav.id], subject: null,
     messages: [
-      { id: id('msg'), senderId: jarrod.id, body: 'Hi Abhinav — here\'s the Family Connect prototype: a ParentSquare-style family-engagement app for Success Academy. Tap the avatar (top-right) to switch personas — admin, teacher, and parent (including a Spanish-speaking family) — to see every side of the platform. Try creating an event, setting up conference sign-ups, or sending an alert (it\'ll buzz your phone). Everything is fictional data and runs on-device. Happy to walk you through it.', lang: 'en', createdAt: hoursAgo(2), read: false },
+      { id: id('msg'), senderId: poulomi.id, body: 'Hi Abhinav — here\'s the Family Connect prototype: a ParentSquare-style family-engagement app for Success Academy. Tap the avatar (top-right) to switch personas — admin, teacher, and parent (including a Spanish-speaking family) — to see every side of the platform. Try creating an event, setting up conference sign-ups, or sending an alert (it\'ll buzz your phone). Everything is fictional data and runs on-device. Happy to walk you through it.', lang: 'en', createdAt: hoursAgo(2), read: false },
     ],
   },
   {
@@ -610,7 +609,6 @@ const db = {
   posts, conversations, signups, forms, events, alerts, autoNotices: [],
   attendanceRules, attendanceEvents, fees, documents, automations, integrations, moderation, prefs,
   personas: [
-    { userId: jarrod.id, label: 'Jarrod Wolf', sub: 'Head, Enterprise AI', role: 'admin' },
     { userId: abhinav.id, label: 'Abhinav Mathur', sub: 'Executive, Enterprise Services', role: 'admin' },
     { userId: poulomi.id, label: 'Poulomi Banerjee', sub: 'Lead Mobile Engineer', role: 'admin' },
     { userId: dana.id, label: 'Dana Okafor', sub: 'Director of Family Engagement', role: 'admin' },

@@ -86,7 +86,7 @@ port 4310 (this file is gitignored — recreate it per environment, don't commit
 **Personas, not auth.** There's no login; `?me`-style client-side persona switching
 (`core.js#setPersona`) stands in for real identity. `seed.cjs`'s `personas` array is the
 switcher's source of truth (`{ userId, label, sub, role }`) — the network-leadership admins
-(Jarrod, Abhinav, Poulomi) were added there alongside the original demo cast (Dana, Marcus,
+(Abhinav, Poulomi) were added there alongside the original demo cast (Dana, Marcus,
 Priya, Carmen) as real evaluators of this pilot, not fictional characters. `app.js`'s `boot()`
 hardcodes which persona a fresh page load starts on — update that alongside `seed.cjs` if the
 default should change (see the `usr_poulomi` references in both files).
